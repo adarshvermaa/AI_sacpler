@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import io from "socket.io-client";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Square, Play, ShieldAlert } from "lucide-react";
 
 import { Header, CoinDCXVerificationData } from "../components/Header";
 import { ModeSelector } from "../components/ModeSelector";
@@ -11,6 +11,9 @@ import { MarketScreenerTable } from "../components/MarketScreenerTable";
 import { OrderBookDepthVisualizer } from "../components/OrderBookDepthVisualizer";
 import { WinWinPositionManager } from "../components/WinWinPositionManager";
 import { ExecutionLog } from "../components/ExecutionLog";
+import { ChartVisualizerModal, ChartAssetData } from "../components/ChartVisualizerModal";
+import { DashboardChartView } from "../components/DashboardChartView";
+import { Top10OrdersPanel } from "../components/Top10OrdersPanel";
 
 const BACKEND_URL = "http://localhost:8000";
 
@@ -26,6 +29,19 @@ export default function AlphaScalperDashboard() {
   const [coindcxStatus, setCoindcxStatus] = useState<CoinDCXVerificationData | null>(null);
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [selectedSymbol, setSelectedSymbol] = useState<string>("B-BTC_USDT");
+
+  // Chart Visualizer Modal State
+  const [selectedChartAsset, setSelectedChartAsset] = useState<ChartAssetData | null>(null);
+  const [isChartModalOpen, setIsChartModalOpen] = useState<boolean>(false);
+
+  const handleOpenChart = (asset: any) => {
+    setSelectedChartAsset(asset);
+    setIsChartModalOpen(true);
+  };
+
+  const handleCloseChart = () => {
+    setIsChartModalOpen(false);
+  };
 
   const [stats, setStats] = useState<any>({
     total_trades: 0,
@@ -56,12 +72,35 @@ export default function AlphaScalperDashboard() {
 
   const [activeTrades, setActiveTrades] = useState<any[]>([]);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
+  const [strategyConfig, setStrategyConfig] = useState<any>(null);
 
   const [logs, setLogs] = useState<any[]>([
     { timestamp: "18:42:10.124", type: "WIN_WIN_BREAKEVEN_LOCKED", message: "TP1 Hit on B-BTC_USDT! 50% closed at +$45.20. Stop Loss ratcheted to Breakeven. Trade is 100% Risk-Free!" },
     { timestamp: "18:42:04.550", type: "ENTRY", message: "Executed BUY Scalp on B-SOL_USDT @ $148.50 (Allocated: $250, Leverage: 10x)" },
     { timestamp: "18:41:52.880", type: "MARKET_SCAN", message: "Scanned 500 instruments -> Filtered 100 Liquid pairs -> Top alpha detected: SOL, BTC, SUI" }
   ]);
+
+  // Ensure default 1st row candidate is selected on viewchart
+  useEffect(() => {
+    if (candidates && candidates.length > 0) {
+      if (!selectedSymbol || selectedSymbol === "B-BTC_USDT" || !candidates.some((c) => c.symbol === selectedSymbol)) {
+        setSelectedSymbol(candidates[0].symbol);
+      }
+    }
+  }, [candidates]);
+
+  // Fetch initial strategy configuration from backend on mount
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/v1/strategy/config`)
+      .then(res => res.json())
+      .then(data => {
+        if (data?.config) {
+          setStrategyConfig(data.config);
+          if (data.config.mode) setMode(data.config.mode);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Connect to Python Backend via Socket.IO
   useEffect(() => {
@@ -77,6 +116,7 @@ export default function AlphaScalperDashboard() {
     s.on("initial_state", (data: any) => {
       if (data.is_running !== undefined) setIsRunning(data.is_running);
       if (data.mode) setMode(data.mode);
+      if (data.config) setStrategyConfig(data.config);
       if (data.stats) setStats((prev: any) => ({ ...prev, ...data.stats }));
     });
 
@@ -86,8 +126,10 @@ export default function AlphaScalperDashboard() {
       if (data.latency_ms !== undefined) setLatencyMs(data.latency_ms);
       if (data.daily_pnl !== undefined) setDailyPnl(data.daily_pnl);
       if (data.kill_switch_active !== undefined) setKillSwitchActive(data.kill_switch_active);
-      if (data.filtered_100_summary && data.filtered_100_summary.length > 0) {
-        setCandidates(data.filtered_100_summary);
+      if (data.top_10_filtered && data.top_10_filtered.length > 0) {
+        setCandidates(data.top_10_filtered);
+      } else if (data.filtered_100_summary && data.filtered_100_summary.length > 0) {
+        setCandidates(data.filtered_100_summary.slice(0, 10));
       }
       setStats((prev: any) => ({
         ...prev,
@@ -267,10 +309,12 @@ export default function AlphaScalperDashboard() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: newMode })
-    }).catch(() => {});
+    })
+      .then(() => handleRefreshScan())
+      .catch(() => {});
   };
 
-  const handleApplyCustomConfig = async (config: any) => {
+  const handleApplyCustomConfig = async (config: any, executeNow: boolean = false) => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/v1/strategy/configure`, {
         method: "POST",
@@ -278,17 +322,39 @@ export default function AlphaScalperDashboard() {
         body: JSON.stringify(config)
       });
       if (res.ok) {
+        const data = await res.json();
+        if (data.config) setStrategyConfig(data.config);
+
         setLogs((prev) => [
           {
             timestamp: new Date().toLocaleTimeString(),
             type: "CONFIG_APPLIED",
-            message: `Applied Custom Studio: Universe=${config.universe_size}, Filter=${config.filter_count}, Orders=${config.execution_count}, Leverage=${config.leverage}x`
+            message: `Applied Custom Studio: Leverage=${config.leverage}x, Orders=${config.execution_count}, SL=${config.stop_loss_pct}%, TP1=${config.take_profit_1_pct}%, MinConf=${config.min_confidence}%`
           },
           ...prev
         ]);
+
+        // Immediately refresh screener with the new strategy rules
+        const scanRes = await fetch(`${BACKEND_URL}/api/v1/markets/screener`);
+        if (scanRes.ok) {
+          const scanData = await scanRes.json();
+          if (scanData.top_10_filtered) setCandidates(scanData.top_10_filtered);
+          else if (scanData.top_100_filtered) setCandidates(scanData.top_100_filtered.slice(0, 10));
+
+          // If user clicked "Apply & Auto-Execute", immediately execute matching targets
+          if (executeNow && scanData.ranked_targets && scanData.ranked_targets.length > 0) {
+            const execCount = config.execution_count || 1;
+            const toExecute = scanData.ranked_targets.slice(0, execCount);
+            for (const target of toExecute) {
+              if (target.signal && (target.signal.includes("BUY") || target.signal.includes("SELL"))) {
+                await handleExecuteSingleTrade(target);
+              }
+            }
+          }
+        }
       }
     } catch (e) {
-      console.error(e);
+      console.error("Failed to apply custom config:", e);
     }
   };
 
@@ -297,7 +363,8 @@ export default function AlphaScalperDashboard() {
       const res = await fetch(`${BACKEND_URL}/api/v1/markets/screener`);
       if (res.ok) {
         const data = await res.json();
-        if (data.top_100_filtered) setCandidates(data.top_100_filtered);
+        if (data.top_10_filtered) setCandidates(data.top_10_filtered);
+        else if (data.top_100_filtered) setCandidates(data.top_100_filtered.slice(0, 10));
       }
     } catch (e) {}
   };
@@ -437,22 +504,22 @@ export default function AlphaScalperDashboard() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 max-w-[1720px] w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+      <main className="flex-1 max-w-[1720px] w-full mx-auto p-3 sm:p-5 lg:p-6 flex flex-col gap-4 sm:gap-6 pb-24 md:pb-8">
         {/* Pre-Flight Diagnostic Notification Banner */}
         {coindcxStatus && !coindcxStatus.is_balance_sufficient && (
-          <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-4 backdrop-blur-md flex flex-wrap items-center justify-between gap-4 text-xs font-mono shadow-lg shadow-amber-950/20">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30 shrink-0">
-                <AlertTriangle className="w-5 h-5" />
+          <div className="rounded-xl sm:rounded-2xl border border-amber-500/40 bg-amber-950/20 p-3.5 sm:p-4 backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 text-xs font-mono shadow-lg shadow-amber-950/20">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/30 shrink-0 mt-0.5 sm:mt-0">
+                <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <div>
-                <div className="text-amber-200 font-bold tracking-wide flex items-center gap-2">
+                <div className="text-amber-200 font-bold tracking-wide flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <span>CoinDCX API Verified: Authenticated</span>
                   <span className="text-emerald-400">✅</span>
-                  <span className="text-slate-400">|</span>
-                  <span>Usable Balance: ${(coindcxStatus.total_usdt_balance ?? 0.049).toFixed(4)} USDT</span>
+                  <span className="text-slate-500 hidden xs:inline">|</span>
+                  <span>Usable: ${(coindcxStatus.total_usdt_balance ?? 0.049).toFixed(4)} USDT</span>
                 </div>
-                <div className="text-slate-400 mt-1 leading-relaxed">
+                <div className="text-slate-400 text-[11px] sm:text-xs mt-1 leading-relaxed">
                   CoinDCX Futures requires minimum <strong>$6.00 USDT</strong> margin per contract. 
                   AlphaScalper is running live 500+ asset market analysis in <strong>Balance-Aware Protected Mode</strong>. 
                   Live orders are held safely to protect your account from exchange errors until margin is added.
@@ -462,7 +529,7 @@ export default function AlphaScalperDashboard() {
             <button
               onClick={handleVerifyCoinDCX}
               disabled={isVerifying}
-              className="px-3.5 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-semibold shrink-0 transition-colors"
+              className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-semibold shrink-0 transition-colors text-center cursor-pointer"
             >
               {isVerifying ? "Verifying..." : "Refresh Balance"}
             </button>
@@ -471,28 +538,28 @@ export default function AlphaScalperDashboard() {
 
         {/* Live Funded & Verified Dynamic Protection Banner */}
         {coindcxStatus && coindcxStatus.is_balance_sufficient && (
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3.5 backdrop-blur-md flex flex-wrap items-center justify-between gap-4 text-xs font-mono shadow-lg shadow-emerald-950/10">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shrink-0">
+          <div className="rounded-xl sm:rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-3 sm:p-3.5 backdrop-blur-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs font-mono shadow-lg shadow-emerald-950/10">
+            <div className="flex items-start sm:items-center gap-2.5 sm:gap-3">
+              <div className="p-1.5 sm:p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shrink-0 mt-0.5 sm:mt-0">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
               <div>
-                <div className="text-emerald-300 font-bold tracking-wide flex items-center gap-2">
+                <div className="text-emerald-300 font-bold tracking-wide flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <span>CoinDCX Futures INR Collateral Verified</span>
-                  <span className="text-slate-500">|</span>
+                  <span className="text-slate-500 hidden xs:inline">|</span>
                   <span className="text-white">Equity: ₹{coindcxStatus.futures_inr_balance?.toFixed(2) || "657.90"} INR (~${(coindcxStatus.total_usdt_balance ?? 7.52).toFixed(2)} USDT)</span>
-                  <span className="text-slate-500">|</span>
+                  <span className="text-slate-500 hidden sm:inline">|</span>
                   <span className="text-emerald-400">Available Free: ₹{coindcxStatus.futures_inr_available?.toFixed(2) || "657.90"} INR</span>
                 </div>
-                <div className="text-slate-400 text-[11px] mt-0.5">
-                  Dynamic Math Engine Active: <strong>1 Order at a time</strong>, <strong>9x–10x Leverage</strong>, <strong>75% Cash Reserve Floor</strong>, <strong>Max Risk ₹2.36 INR per scalp</strong>.
+                <div className="text-slate-400 text-[10px] sm:text-[11px] mt-0.5">
+                  Dynamic Math Engine Active: <strong>Up to 10 Orders dynamically allocated</strong>, <strong>10x Leverage</strong>, <strong>15% Capital Protection Buffer</strong>, <strong>Hard Stop -0.45% & TP1 +0.85% (Risk-Free)</strong>.
                 </div>
               </div>
             </div>
             <button
               onClick={handleVerifyCoinDCX}
               disabled={isVerifying}
-              className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold shrink-0 transition-colors"
+              className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold shrink-0 transition-colors text-center cursor-pointer"
             >
               {isVerifying ? "Syncing..." : "Sync Balance"}
             </button>
@@ -507,35 +574,50 @@ export default function AlphaScalperDashboard() {
 
         {/* Custom Studio Inputs Panel (Visible in Custom Mode) */}
         {mode === "CUSTOM" && (
-          <CustomStudioPanel onApplyConfig={handleApplyCustomConfig} />
+          <CustomStudioPanel
+            currentConfig={strategyConfig}
+            onApplyConfig={handleApplyCustomConfig}
+            onRefreshScan={handleRefreshScan}
+          />
         )}
 
-        {/* Screener & Depth Visualizer Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <MarketScreenerTable
-              candidates={candidates}
-              selectedSymbol={selectedSymbol}
-              onSelectSymbol={setSelectedSymbol}
-              onExecuteTrade={handleExecuteSingleTrade}
-            />
-          </div>
-          <div className="lg:col-span-1">
+        {/* Main Trading Dashboard Grid: Left Chart View & Right 10/10 Orders Pipeline */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-stretch">
+          {/* Left Side: Candlestick Chart View with Entry, SL, TP1, TP2 & BE lines */}
+          <div className="lg:col-span-7 xl:col-span-8 flex flex-col">
             {(() => {
               const activeAsset = candidates.find((c) => c.symbol === selectedSymbol) || candidates[0];
+              const activeTrade = activeTrades.find((t) => t.symbol === selectedSymbol);
               return (
-                <OrderBookDepthVisualizer
-                  symbol={activeAsset?.symbol || selectedSymbol || "B-BTC_USDT"}
-                  midPrice={activeAsset?.price || 77395.0}
-                  obi={activeAsset?.obi_10 || 0.42}
+                <DashboardChartView
+                  asset={activeAsset}
+                  activeTrade={activeTrade}
+                  onExecuteTrade={handleExecuteSingleTrade}
+                  onExitTrade={handleExitSingleTrade}
+                  onExpandFullscreen={() => handleOpenChart(activeAsset || activeTrade)}
                 />
               );
             })()}
           </div>
+
+          {/* Right Side: 10/10 Executed & Non-Executed Orders Pipeline */}
+          <div className="lg:col-span-5 xl:col-span-4 flex flex-col">
+            <Top10OrdersPanel
+              candidates={candidates}
+              activeTrades={activeTrades}
+              activeOrders={activeOrders}
+              selectedSymbol={selectedSymbol}
+              onSelectSymbol={setSelectedSymbol}
+              onExecuteTrade={handleExecuteSingleTrade}
+              onExitTrade={handleExitSingleTrade}
+              onCancelOrder={handleCancelSingleOrder}
+              totalUniverseScanned={coindcxStatus?.active_instruments_count || 1500}
+            />
+          </div>
         </div>
 
         {/* Active Positions Manager & Execution Log Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           <div className="lg:col-span-2">
             <WinWinPositionManager
               activeTrades={activeTrades}
@@ -545,6 +627,7 @@ export default function AlphaScalperDashboard() {
               onCancelOrder={handleCancelSingleOrder}
               onCancelAllOrders={handleCancelAllActiveOrders}
               onRefreshOrders={handleRefreshPositionsAndOrders}
+              onViewChart={handleOpenChart}
             />
           </div>
           <div className="lg:col-span-1">
@@ -553,12 +636,54 @@ export default function AlphaScalperDashboard() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-[#07090e] py-3 px-6 text-center text-xs text-slate-500 font-mono flex items-center justify-between">
-        <div>
-          AlphaScalper AI • Built with Python &amp; Next.js for CoinDCX Futures &amp; Options
+      {/* Sticky Mobile Floating Action Bar (< md viewports) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#07090e]/95 backdrop-blur-2xl border-t border-slate-800 px-3 py-2 flex items-center justify-between gap-2 font-mono shadow-2xl">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isRunning ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+          <div className="truncate">
+            <div className="text-[11px] font-bold text-white leading-tight truncate">
+              ₹{stats.current_capital_inr ? stats.current_capital_inr.toFixed(0) : "658"} INR
+            </div>
+            <div className={`text-[10px] font-bold leading-tight ${stats.net_pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {stats.net_pnl >= 0 ? "+" : ""}${stats.net_pnl?.toFixed(2) || "0.00"} Net PnL
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={handleToggleEngine}
+            className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md transition-all ${
+              isRunning
+                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
+                : "bg-gradient-to-r from-emerald-500 to-teal-500 text-black shadow-emerald-500/20 hover:opacity-95"
+            }`}
+          >
+            {isRunning ? <Square className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
+            <span>{isRunning ? "PAUSE" : "START"}</span>
+          </button>
+
+          <button
+            onClick={handleKillSwitch}
+            className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1 cursor-pointer transition-all ${
+              killSwitchActive
+                ? "bg-red-600 text-white animate-pulse border-red-400"
+                : "bg-red-950/40 text-red-400 border-red-800/50 hover:bg-red-600 hover:text-white"
+            }`}
+            title="Emergency Kill Switch"
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">KILL</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Footer (Responsive layout) */}
+      <footer className="border-t border-slate-900 bg-[#07090e] py-3.5 px-4 sm:px-6 text-xs text-slate-500 font-mono flex flex-col sm:flex-row items-center justify-between gap-2.5 text-center sm:text-left">
+        <div>
+          AlphaScalper AI • Built for CoinDCX Crypto Futures &amp; Options Scalping
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-[11px]">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400" /> CoinDCX WebSocket: ACTIVE
           </span>
@@ -567,6 +692,15 @@ export default function AlphaScalperDashboard() {
           </span>
         </div>
       </footer>
+
+      {/* Interactive Candlestick Chart Modal with Entry, SL, TP1, TP2 & BE Lines */}
+      <ChartVisualizerModal
+        isOpen={isChartModalOpen}
+        onClose={handleCloseChart}
+        asset={selectedChartAsset}
+        onExecuteTrade={handleExecuteSingleTrade}
+        onExitTrade={handleExitSingleTrade}
+      />
     </div>
   );
 }

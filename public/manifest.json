@@ -1,0 +1,21 @@
+{
+  "name": "AlphaScalper - AI Crypto Scalping & HFT Engine",
+  "short_name": "AlphaScalper",
+  "description": "Institutional-grade AI Scalper for Crypto Futures and Options trading with CoinDCX API.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07090e",
+  "theme_color": "#06b6d4",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

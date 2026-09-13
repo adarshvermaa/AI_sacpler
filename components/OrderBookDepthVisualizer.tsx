@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Layers, ArrowDown, ArrowUp, RefreshCw } from "lucide-react";
+import { Layers } from "lucide-react";
 
 interface OrderBookDepthVisualizerProps {
   symbol?: string;
@@ -15,7 +15,6 @@ export const OrderBookDepthVisualizer: React.FC<OrderBookDepthVisualizerProps> =
   obi = 0.42
 }) => {
   const [liveOrderBook, setLiveOrderBook] = useState<{ bids: Record<string, string>; asks: Record<string, string> } | null>(null);
-  const [loading, setLoading] = useState(false);
 
   // Fetch live orderbook depth from CoinDCX API via backend
   useEffect(() => {
@@ -56,7 +55,7 @@ export const OrderBookDepthVisualizer: React.FC<OrderBookDepthVisualizerProps> =
       total: parseFloat(p) * parseFloat(q)
     }));
     rawAsks.sort((a, b) => b.price - a.price);
-    asks = rawAsks.slice(-8); // lowest 8 asks
+    asks = rawAsks.slice(-6); // lowest 6 asks for clean mobile height
 
     const rawBids = Object.entries(liveOrderBook.bids).map(([p, q]) => ({
       price: parseFloat(p),
@@ -64,7 +63,7 @@ export const OrderBookDepthVisualizer: React.FC<OrderBookDepthVisualizerProps> =
       total: parseFloat(p) * parseFloat(q)
     }));
     rawBids.sort((a, b) => b.price - a.price);
-    bids = rawBids.slice(0, 8); // highest 8 bids
+    bids = rawBids.slice(0, 6); // highest 6 bids
 
     if (asks.length > 0 && bids.length > 0) {
       const bestAsk = asks[asks.length - 1].price;
@@ -75,13 +74,13 @@ export const OrderBookDepthVisualizer: React.FC<OrderBookDepthVisualizerProps> =
   } else {
     // Fallback strictly anchored to real midPrice
     const halfSpread = midPrice * 0.0001;
-    asks = Array.from({ length: 8 }).map((_, i) => {
+    asks = Array.from({ length: 6 }).map((_, i) => {
       const p = midPrice + halfSpread + (i * midPrice * 0.0001);
       const q = 0.5 + (i * 0.8) + (Math.sin(i) * 0.3);
       return { price: p, qty: Math.max(0.01, q), total: q * p };
     }).reverse();
 
-    bids = Array.from({ length: 8 }).map((_, i) => {
+    bids = Array.from({ length: 6 }).map((_, i) => {
       const p = midPrice - halfSpread - (i * midPrice * 0.0001);
       const q = 0.8 + (i * 1.1) + (Math.cos(i) * 0.4);
       return { price: p, qty: Math.max(0.01, q), total: q * p };
@@ -95,31 +94,31 @@ export const OrderBookDepthVisualizer: React.FC<OrderBookDepthVisualizerProps> =
   const spreadPct = (spreadVal / Math.max(displayMidPrice, 1e-6)) * 100;
 
   return (
-    <div className="bg-[#0f1422] border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col h-full font-mono text-xs">
-      <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+    <div className="bg-[#0f1422] border border-slate-800 rounded-xl sm:rounded-2xl p-3.5 sm:p-5 shadow-xl flex flex-col h-full font-mono text-xs">
+      <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-2.5">
         <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-cyan-400" />
-          <h3 className="font-bold text-slate-200">
-            L2 ORDERBOOK DEPTH • {symbol.replace("B-", "").replace("_", "/")}
+          <Layers className="w-4 h-4 text-cyan-400 shrink-0" />
+          <h3 className="font-bold text-slate-200 text-xs sm:text-sm truncate">
+            L2 DEPTH • {symbol.replace("B-", "").replace("_", "/")}
           </h3>
         </div>
-        <div className="flex items-center gap-2 text-[10px]">
+        <div className="flex items-center gap-1.5 text-[10px] shrink-0">
           <span className="text-slate-400">OBI:</span>
           <span className={`font-bold ${obi >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {obi >= 0 ? "+" : ""}{(obi * 100).toFixed(1)}% {obi >= 0 ? "BUY BIAS" : "SELL BIAS"}
+            {obi >= 0 ? "+" : ""}{(obi * 100).toFixed(0)}% {obi >= 0 ? "BUY" : "SELL"}
           </span>
         </div>
       </div>
 
       {/* Table Headers */}
-      <div className="grid grid-cols-3 text-[10px] uppercase text-slate-500 pb-1 px-2">
+      <div className="grid grid-cols-3 text-[10px] uppercase text-slate-500 pb-1 px-2 font-bold">
         <span>Price (USDT)</span>
         <span className="text-right">Size</span>
-        <span className="text-right">Total (USDT)</span>
+        <span className="text-right">Total ($)</span>
       </div>
 
       {/* Asks (Sell Orders) */}
-      <div className="flex flex-col gap-0.5 mb-2">
+      <div className="flex flex-col gap-0.5 mb-1.5">
         {asks.map((ask, idx) => {
           const depthPct = (ask.qty / maxQty) * 100;
           return (
@@ -131,7 +130,7 @@ export const OrderBookDepthVisualizer: React.FC<OrderBookDepthVisualizerProps> =
                 className="absolute right-0 top-0 bottom-0 bg-red-500/10 pointer-events-none transition-all"
                 style={{ width: `${depthPct}%` }}
               />
-              <span className="text-red-400 relative z-10">
+              <span className="text-red-400 relative z-10 font-medium">
                 {ask.price >= 1 ? ask.price.toFixed(2) : ask.price.toFixed(4)}
               </span>
               <span className="text-right text-slate-300 relative z-10">{ask.qty.toFixed(3)}</span>
@@ -143,26 +142,24 @@ export const OrderBookDepthVisualizer: React.FC<OrderBookDepthVisualizerProps> =
         })}
       </div>
 
-      {/* Spread & Micro-Price Indicator */}
-      <div className="py-2.5 px-3 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between my-1">
+      {/* Spread & Micro-Price Indicator (Responsive Wrap) */}
+      <div className="py-2 px-3 rounded-xl bg-slate-900/90 border border-slate-800/90 flex flex-col xs:flex-row xs:items-center justify-between gap-1 my-1">
         <div className="flex items-center gap-2">
-          <span className="text-base font-bold text-white">
+          <span className="text-sm sm:text-base font-bold text-white">
             ${displayMidPrice >= 1 ? displayMidPrice.toFixed(2) : displayMidPrice.toFixed(4)}
           </span>
           <span className="text-[10px] text-slate-400">
             SPREAD: ${spreadVal >= 1 ? spreadVal.toFixed(2) : spreadVal.toFixed(4)} ({spreadPct.toFixed(3)}%)
           </span>
         </div>
-        <div className="text-[10px] text-cyan-300 flex items-center gap-1">
-          <span>MICRO-PRICE:</span>
-          <span className="font-bold">
-            ${microPrice >= 1 ? microPrice.toFixed(2) : microPrice.toFixed(4)}
-          </span>
+        <div className="text-[10px] text-cyan-300 flex items-center gap-1 font-bold">
+          <span>MICRO:</span>
+          <span>${microPrice >= 1 ? microPrice.toFixed(2) : microPrice.toFixed(4)}</span>
         </div>
       </div>
 
       {/* Bids (Buy Orders) */}
-      <div className="flex flex-col gap-0.5 mt-2">
+      <div className="flex flex-col gap-0.5 mt-1.5">
         {bids.map((bid, idx) => {
           const depthPct = (bid.qty / maxQty) * 100;
           return (
@@ -174,7 +171,7 @@ export const OrderBookDepthVisualizer: React.FC<OrderBookDepthVisualizerProps> =
                 className="absolute right-0 top-0 bottom-0 bg-emerald-500/10 pointer-events-none transition-all"
                 style={{ width: `${depthPct}%` }}
               />
-              <span className="text-emerald-400 relative z-10">
+              <span className="text-emerald-400 relative z-10 font-medium">
                 {bid.price >= 1 ? bid.price.toFixed(2) : bid.price.toFixed(4)}
               </span>
               <span className="text-right text-slate-300 relative z-10">{bid.qty.toFixed(3)}</span>

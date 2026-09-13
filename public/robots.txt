@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+Sitemap: https://alphascalper.ai/sitemap.xml
+Host: https://alphascalper.ai

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#0c1322"/>
+      <stop offset="100%" stopColor="#05070c"/>
+    </linearGradient>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#06b6d4"/>
+      <stop offset="50%" stopColor="#3b82f6"/>
+      <stop offset="100%" stopColor="#10b981"/>
+    </linearGradient>
+    <linearGradient id="alphaLoopGrad" x1="15%" y1="85%" x2="85%" y2="15%">
+      <stop offset="0%" stopColor="#06b6d4"/>
+      <stop offset="50%" stopColor="#3b82f6"/>
+      <stop offset="100%" stopColor="#60a5fa"/>
+    </linearGradient>
+    <linearGradient id="breakoutArrowGrad" x1="30%" y1="100%" x2="90%" y2="0%">
+      <stop offset="0%" stopColor="#10b981"/>
+      <stop offset="60%" stopColor="#22d3ee"/>
+      <stop offset="100%" stopColor="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stopColor="#22d3ee"/>
+      <stop offset="50%" stopColor="#2dd4bf"/>
+      <stop offset="100%" stopColor="#34d399"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Emblem -->
+  <g transform="translate(10, 10)">
+    <rect width="80" height="80" rx="18" fill="url(#bg)"/>
+    <rect width="76" height="76" x="2" y="2" rx="16" stroke="url(#borderGrad)" stroke-width="2" fill="none"/>
+    
+    <!-- Alpha Loop -->
+    <path d="M 54 60 C 46 60 37 51 29 40 C 21 29 18 22 26 19 C 34 16 38 26 46 40 C 53 51 59 60 67 60" stroke="url(#alphaLoopGrad)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Scalp Breakout Arrow -->
+    <path d="M 22 60 L 45 29 L 62 18" stroke="url(#breakoutArrowGrad)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 51 16 L 64 16 L 64 29" stroke="url(#breakoutArrowGrad)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="40" cy="40" r="3.5" fill="#22d3ee"/>
+  </g>
+
+  <!-- Text -->
+  <text x="108" y="52" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="32" font-weight="900" letter-spacing="1.5">ALPHA</text>
+  <text x="228" y="52" fill="url(#textGrad)" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="32" font-weight="900" letter-spacing="1.5">SCALPER</text>
+  <text x="110" y="74" fill="#94a3b8" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="11" font-weight="600" letter-spacing="3">SUB-MILLISECOND AI QUANT ENGINE</text>
+</svg>
