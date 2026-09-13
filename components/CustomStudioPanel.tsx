@@ -10,9 +10,10 @@ interface CustomStudioPanelProps {
 export const CustomStudioPanel: React.FC<CustomStudioPanelProps> = ({ onApplyConfig }) => {
   const [universeSize, setUniverseSize] = useState<number>(500);
   const [filterCount, setFilterCount] = useState<number>(100);
-  const [executionCount, setExecutionCount] = useState<number>(50);
+  const [executionCount, setExecutionCount] = useState<number>(1);
   const [leverage, setLeverage] = useState<number>(10);
   const [riskPerTrade, setRiskPerTrade] = useState<number>(1.0);
+  const [directionBias, setDirectionBias] = useState<string>("AUTO");
 
   // Indicators selection
   const [indicators, setIndicators] = useState<{ [key: string]: boolean }>({
@@ -57,6 +58,7 @@ export const CustomStudioPanel: React.FC<CustomStudioPanelProps> = ({ onApplyCon
       execution_count: executionCount,
       leverage: leverage,
       risk_per_trade_pct: riskPerTrade,
+      direction_bias: directionBias,
       selected_indicators: selectedInds,
       price_action_rules: selectedPA
     });
@@ -143,33 +145,33 @@ export const CustomStudioPanel: React.FC<CustomStudioPanelProps> = ({ onApplyCon
           </div>
           <input
             type="range"
-            min="5"
-            max="50"
-            step="5"
+            min="1"
+            max="10"
+            step="1"
             value={executionCount}
             onChange={(e) => setExecutionCount(Number(e.target.value))}
             className="w-full accent-emerald-400 cursor-pointer"
           />
           <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-            <span>5 orders</span>
-            <span>50 Top Alpha</span>
+            <span>1 order (Safe for $10)</span>
+            <span>10 max concurrent</span>
           </div>
         </div>
       </div>
 
-      {/* Row 2: Leverage & Risk Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-          <div>
+      {/* Row 2: Leverage, Risk & Direction Bias Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+          <div className="mb-2">
             <label className="text-xs font-semibold text-slate-300">LEVERAGE (ISOLATED FUTURES)</label>
             <p className="text-[10px] text-slate-500">Tiered CoinDCX position margin safety</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {[5, 10, 15, 20].map((lev) => (
               <button
                 key={lev}
                 onClick={() => setLeverage(lev)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
+                className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
                   leverage === lev
                     ? "bg-cyan-500 text-black shadow-md shadow-cyan-500/30"
                     : "bg-slate-800 text-slate-300 hover:bg-slate-700"
@@ -181,23 +183,49 @@ export const CustomStudioPanel: React.FC<CustomStudioPanelProps> = ({ onApplyCon
           </div>
         </div>
 
-        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-          <div>
+        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+          <div className="mb-2">
             <label className="text-xs font-semibold text-slate-300">MAX RISK PER SCALP</label>
             <p className="text-[10px] text-slate-500">Fractional Kelly capital sizing cap</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {[0.5, 1.0, 1.5, 2.0].map((risk) => (
               <button
                 key={risk}
                 onClick={() => setRiskPerTrade(risk)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
+                className={`flex-1 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
                   riskPerTrade === risk
                     ? "bg-purple-500 text-white shadow-md shadow-purple-500/30"
                     : "bg-slate-800 text-slate-300 hover:bg-slate-700"
                 }`}
               >
                 {risk}%
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+          <div className="mb-2">
+            <label className="text-xs font-semibold text-slate-300">MARKET REGIME DIRECTION BIAS</label>
+            <p className="text-[10px] text-slate-500">Filter scalp opportunities by market trend</p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {[
+              { id: "AUTO", label: "AUTO (BOTH)", color: "bg-cyan-500 text-black" },
+              { id: "LONG", label: "LONG ONLY", color: "bg-emerald-500 text-black" },
+              { id: "SHORT", label: "SHORT ONLY", color: "bg-rose-500 text-white" }
+            ].map((dir) => (
+              <button
+                key={dir.id}
+                onClick={() => setDirectionBias(dir.id)}
+                className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                  directionBias === dir.id
+                    ? `${dir.color} shadow-md`
+                    : "bg-slate-800 text-slate-400 hover:text-white"
+                }`}
+              >
+                {dir.label}
               </button>
             ))}
           </div>

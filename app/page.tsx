@@ -19,7 +19,7 @@ export default function AlphaScalperDashboard() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [mode, setMode] = useState<"DEFAULT" | "CUSTOM">("DEFAULT");
   const [latencyMs, setLatencyMs] = useState<number>(0.18);
-  const [dailyPnl, setDailyPnl] = useState<number>(1420.50);
+  const [dailyPnl, setDailyPnl] = useState<number>(0.0);
   const [killSwitchActive, setKillSwitchActive] = useState<boolean>(false);
   
   // CoinDCX API Diagnostics & Live Balance State
@@ -28,14 +28,21 @@ export default function AlphaScalperDashboard() {
   const [selectedSymbol, setSelectedSymbol] = useState<string>("B-BTC_USDT");
 
   const [stats, setStats] = useState<any>({
-    total_trades: 42,
-    win_rate_pct: 78.4,
-    profit_factor: 3.12,
-    total_pnl: 1420.50,
-    active_trades_count: 3,
-    risk_free_active_count: 2,
+    total_trades: 0,
+    win_rate_pct: 0.0,
+    profit_factor: 0.0,
+    total_pnl: 0.0,
+    net_pnl: 0.0,
+    daily_pnl: 0.0,
+    daily_pnl_inr: 0.0,
+    total_fees_paid: 0.0,
+    total_fees_paid_inr: 0.0,
+    active_trades_count: 0,
+    risk_free_active_count: 0,
     avg_latency_ms: 0.18,
-    current_capital: 0.049
+    current_capital: 7.52,
+    current_capital_inr: 657.90,
+    inr_rate: 87.5
   });
 
   const [candidates, setCandidates] = useState<any[]>([
@@ -48,6 +55,7 @@ export default function AlphaScalperDashboard() {
   ]);
 
   const [activeTrades, setActiveTrades] = useState<any[]>([]);
+  const [activeOrders, setActiveOrders] = useState<any[]>([]);
 
   const [logs, setLogs] = useState<any[]>([
     { timestamp: "18:42:10.124", type: "WIN_WIN_BREAKEVEN_LOCKED", message: "TP1 Hit on B-BTC_USDT! 50% closed at +$45.20. Stop Loss ratcheted to Breakeven. Trade is 100% Risk-Free!" },
@@ -89,8 +97,14 @@ export default function AlphaScalperDashboard() {
         active_trades_count: data.active_trades_count ?? prev.active_trades_count,
         risk_free_active_count: data.risk_free_count ?? prev.risk_free_active_count,
         daily_pnl: data.daily_pnl ?? prev.daily_pnl,
+        daily_pnl_inr: data.daily_pnl_inr ?? prev.daily_pnl_inr,
+        net_pnl: data.net_pnl ?? prev.net_pnl,
+        total_fees_paid: data.total_fees_paid ?? prev.total_fees_paid,
+        total_fees_paid_inr: data.total_fees_paid_inr ?? prev.total_fees_paid_inr,
         avg_latency_ms: data.avg_latency_ms ?? prev.avg_latency_ms,
-        current_capital: data.current_capital ?? prev.current_capital
+        current_capital: data.current_capital ?? prev.current_capital,
+        current_capital_inr: data.current_capital_inr ?? prev.current_capital_inr,
+        inr_rate: data.inr_rate ?? prev.inr_rate
       }));
     });
 
@@ -121,13 +135,65 @@ export default function AlphaScalperDashboard() {
         const data: CoinDCXVerificationData = await res.json();
         setCoindcxStatus(data);
         if (data.total_usdt_balance !== undefined) {
-          setStats((prev: any) => ({ ...prev, current_capital: data.total_usdt_balance }));
+          const inrBal = data.futures_inr_balance ?? (data.total_usdt_balance * 87.5);
+          setStats((prev: any) => ({
+            ...prev,
+            current_capital: data.total_usdt_balance,
+            current_capital_inr: inrBal,
+            inr_rate: 87.5
+          }));
         }
       }
     } catch (e) {
       console.error("CoinDCX verification error:", e);
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handleResetStats = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/v1/stats/reset`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setDailyPnl(0.0);
+        if (data.stats) {
+          setStats((prev: any) => ({
+            ...prev,
+            ...data.stats,
+            daily_pnl: 0.0,
+            daily_pnl_inr: 0.0,
+            net_pnl: 0.0,
+            total_fees_paid: 0.0,
+            total_fees_paid_inr: 0.0
+          }));
+        } else {
+          setStats((prev: any) => ({
+            ...prev,
+            total_trades: 0,
+            win_rate_pct: 0.0,
+            profit_factor: 0.0,
+            total_pnl: 0.0,
+            net_pnl: 0.0,
+            daily_pnl: 0.0,
+            daily_pnl_inr: 0.0,
+            total_fees_paid: 0.0,
+            total_fees_paid_inr: 0.0,
+            active_trades_count: 0,
+            risk_free_active_count: 0
+          }));
+        }
+        setLogs((prev) => [
+          {
+            timestamp: new Date().toLocaleTimeString(),
+            type: "STATS_RESET",
+            message: "Performance statistics and Daily PnL reset to 0 for fresh live tracking."
+          },
+          ...prev
+        ]);
+      }
+    } catch (e) {
+      console.error("Failed to reset statistics:", e);
     }
   };
 
@@ -143,15 +209,24 @@ export default function AlphaScalperDashboard() {
     };
   }, []);
 
-  // Poll positions periodically
+  // Poll positions & active orders periodically
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/v1/positions`);
-        if (res.ok) {
-          const data = await res.json();
+        const [posRes, ordRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/api/v1/positions`),
+          fetch(`${BACKEND_URL}/api/v1/orders/active`)
+        ]);
+        if (posRes.ok) {
+          const data = await posRes.json();
           if (data.active_trades) {
             setActiveTrades(data.active_trades);
+          }
+        }
+        if (ordRes.ok) {
+          const data = await ordRes.json();
+          if (data.orders) {
+            setActiveOrders(data.orders);
           }
         }
       } catch (e) {
@@ -227,15 +302,43 @@ export default function AlphaScalperDashboard() {
     } catch (e) {}
   };
 
-  const handleExecuteSingleTrade = (asset: any) => {
-    setLogs((prev) => [
-      {
-        timestamp: new Date().toLocaleTimeString(),
-        type: "MANUAL_SCALP_TRIGGER",
-        message: `Manual Scalp executed on ${asset.symbol} @ $${asset.price} (${asset.signal})`
-      },
-      ...prev
-    ]);
+  const handleExecuteSingleTrade = async (asset: any) => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/v1/orders/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pair: asset.symbol,
+          side: asset.signal?.includes("SELL") ? "sell" : "buy",
+          order_type: "market_order",
+          notional: 6.0,
+          price: asset.entry_price || asset.price,
+          tp_price: asset.tp1_price,
+          sl_price: asset.sl_price,
+          tp2_price: asset.tp2_price
+        })
+      });
+      const data = await res.json();
+      setLogs((prev) => [
+        {
+          timestamp: new Date().toLocaleTimeString(),
+          type: data.status === "error" ? "ORDER_ERROR" : "MANUAL_SCALP_TRIGGER",
+          message: data.status === "error"
+            ? `Order failed on ${asset.symbol}: ${data.message}`
+            : `Manual Scalp placed on ${asset.symbol} @ $${asset.price} (${asset.signal})`
+        },
+        ...prev
+      ]);
+    } catch (e: any) {
+      setLogs((prev) => [
+        {
+          timestamp: new Date().toLocaleTimeString(),
+          type: "ORDER_ERROR",
+          message: `Network error placing scalp on ${asset.symbol}: ${e.message}`
+        },
+        ...prev
+      ]);
+    }
   };
 
   const handleExitSingleTrade = async (tradeId: string) => {
@@ -255,9 +358,65 @@ export default function AlphaScalperDashboard() {
     try {
       await fetch(`${BACKEND_URL}/api/v1/positions/exit_all`, { method: "POST" });
       setActiveTrades([]);
+      setActiveOrders([]);
     } catch (e) {
       setActiveTrades([]);
     }
+  };
+
+  const handleCancelSingleOrder = async (orderId: string) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/v1/orders/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order_id: orderId })
+      });
+      setActiveOrders((prev) => prev.filter((o) => o.id !== orderId));
+      setLogs((prev) => [
+        {
+          timestamp: new Date().toLocaleTimeString(),
+          type: "ORDER_CANCELLED",
+          message: `Order ${orderId} cancelled on CoinDCX.`
+        },
+        ...prev
+      ]);
+    } catch (e) {
+      setActiveOrders((prev) => prev.filter((o) => o.id !== orderId));
+    }
+  };
+
+  const handleCancelAllActiveOrders = async () => {
+    try {
+      await fetch(`${BACKEND_URL}/api/v1/orders/cancel_all`, { method: "POST" });
+      setActiveOrders([]);
+      setLogs((prev) => [
+        {
+          timestamp: new Date().toLocaleTimeString(),
+          type: "ALL_ORDERS_CANCELLED",
+          message: "All open and untriggered orders cancelled on CoinDCX."
+        },
+        ...prev
+      ]);
+    } catch (e) {
+      setActiveOrders([]);
+    }
+  };
+
+  const handleRefreshPositionsAndOrders = async () => {
+    try {
+      const [posRes, ordRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/api/v1/positions`),
+        fetch(`${BACKEND_URL}/api/v1/orders/active`)
+      ]);
+      if (posRes.ok) {
+        const posData = await posRes.json();
+        if (posData.active_trades) setActiveTrades(posData.active_trades);
+      }
+      if (ordRes.ok) {
+        const ordData = await ordRes.json();
+        if (ordData.orders) setActiveOrders(ordData.orders);
+      }
+    } catch (e) {}
   };
 
   return (
@@ -310,8 +469,38 @@ export default function AlphaScalperDashboard() {
           </div>
         )}
 
+        {/* Live Funded & Verified Dynamic Protection Banner */}
+        {coindcxStatus && coindcxStatus.is_balance_sufficient && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3.5 backdrop-blur-md flex flex-wrap items-center justify-between gap-4 text-xs font-mono shadow-lg shadow-emerald-950/10">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shrink-0">
+                <CheckCircle2 className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-emerald-300 font-bold tracking-wide flex items-center gap-2">
+                  <span>CoinDCX Futures INR Collateral Verified</span>
+                  <span className="text-slate-500">|</span>
+                  <span className="text-white">Equity: ₹{coindcxStatus.futures_inr_balance?.toFixed(2) || "657.90"} INR (~${(coindcxStatus.total_usdt_balance ?? 7.52).toFixed(2)} USDT)</span>
+                  <span className="text-slate-500">|</span>
+                  <span className="text-emerald-400">Available Free: ₹{coindcxStatus.futures_inr_available?.toFixed(2) || "657.90"} INR</span>
+                </div>
+                <div className="text-slate-400 text-[11px] mt-0.5">
+                  Dynamic Math Engine Active: <strong>1 Order at a time</strong>, <strong>9x–10x Leverage</strong>, <strong>75% Cash Reserve Floor</strong>, <strong>Max Risk ₹2.36 INR per scalp</strong>.
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={handleVerifyCoinDCX}
+              disabled={isVerifying}
+              className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold shrink-0 transition-colors"
+            >
+              {isVerifying ? "Syncing..." : "Sync Balance"}
+            </button>
+          </div>
+        )}
+
         {/* Performance Stats Cards */}
-        <PerformanceStats stats={stats} />
+        <PerformanceStats stats={stats} onResetStats={handleResetStats} />
 
         {/* Mode Selector */}
         <ModeSelector currentMode={mode} onSelectMode={handleSelectMode} />
@@ -350,8 +539,12 @@ export default function AlphaScalperDashboard() {
           <div className="lg:col-span-2">
             <WinWinPositionManager
               activeTrades={activeTrades}
+              activeOrders={activeOrders}
               onExitTrade={handleExitSingleTrade}
               onExitAll={handleExitAllTrades}
+              onCancelOrder={handleCancelSingleOrder}
+              onCancelAllOrders={handleCancelAllActiveOrders}
+              onRefreshOrders={handleRefreshPositionsAndOrders}
             />
           </div>
           <div className="lg:col-span-1">

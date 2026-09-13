@@ -13,6 +13,14 @@ export interface ScreenerAsset {
   obi_10: number;
   regime: string;
   change_24h?: number;
+  entry_type?: string;
+  entry_price?: number;
+  tp1_price?: number;
+  tp2_price?: number;
+  sl_price?: number;
+  rr_ratio?: number;
+  candlestick_pattern?: number;
+  atr_pct?: number;
 }
 
 interface MarketScreenerTableProps {
@@ -81,17 +89,25 @@ export const MarketScreenerTable: React.FC<MarketScreenerTableProps> = ({
 
           {/* Quick Filter Buttons */}
           <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800 text-xs">
-            {["ALL", "BUY", "SELL"].map((s) => (
+            {[
+              { id: "ALL", label: "ALL" },
+              { id: "BUY", label: "LONG / BUY" },
+              { id: "SELL", label: "SHORT / SELL" }
+            ].map((s) => (
               <button
-                key={s}
-                onClick={() => setFilterSignal(s)}
+                key={s.id}
+                onClick={() => setFilterSignal(s.id)}
                 className={`px-2.5 py-1 rounded text-[11px] font-bold transition-all ${
-                  filterSignal === s
-                    ? "bg-cyan-500 text-black shadow-sm"
+                  filterSignal === s.id
+                    ? s.id === "BUY"
+                      ? "bg-emerald-500 text-black shadow-sm"
+                      : s.id === "SELL"
+                      ? "bg-rose-500 text-white shadow-sm"
+                      : "bg-cyan-500 text-black shadow-sm"
                     : "text-slate-400 hover:text-white"
                 }`}
               >
-                {s}
+                {s.label}
               </button>
             ))}
           </div>
@@ -136,9 +152,18 @@ export const MarketScreenerTable: React.FC<MarketScreenerTableProps> = ({
                   </td>
 
                   <td className="py-2.5 px-3 text-slate-100 font-semibold">
-                    ${asset.price >= 1 
-                      ? asset.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) 
-                      : (asset.price >= 0.01 ? asset.price.toFixed(4) : asset.price.toFixed(6))}
+                    <div>
+                      ${asset.price >= 1 
+                        ? asset.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }) 
+                        : (asset.price >= 0.01 ? asset.price.toFixed(4) : asset.price.toFixed(6))}
+                    </div>
+                    {asset.entry_price !== undefined && (
+                      <div className="text-[9px] font-normal flex items-center gap-1 mt-0.5">
+                        <span className={asset.entry_type === "LIMIT_PULLBACK" ? "text-cyan-400 font-bold" : "text-slate-400"}>
+                          {asset.entry_type === "LIMIT_PULLBACK" ? "PULLBACK" : "MKT"}: ${asset.entry_price}
+                        </span>
+                      </div>
+                    )}
                   </td>
 
                   <td className={`py-2.5 px-3 font-bold ${chg >= 0 ? "text-emerald-400" : "text-red-400"}`}>
@@ -172,35 +197,66 @@ export const MarketScreenerTable: React.FC<MarketScreenerTableProps> = ({
                   <td className="py-2.5 px-3">
                     <div className="flex items-center gap-2">
                       <span className={`font-bold ${
-                        asset.confidence >= 70 ? "text-emerald-400" : asset.confidence <= 30 ? "text-red-400" : "text-slate-300"
+                        isBuy ? "text-emerald-400" : isSell ? "text-rose-400" : "text-slate-300"
                       }`}>
                         {asset.confidence.toFixed(1)}%
                       </span>
                     </div>
                   </td>
 
-                  {/* Signal Badge */}
+                  {/* Signal & Dynamic Target Brackets */}
                   <td className="py-2.5 px-3">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                      isBuy
-                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                        : isSell
-                        ? "bg-red-500/20 text-red-400 border border-red-500/40"
-                        : "bg-slate-800 text-slate-400 border border-slate-700"
-                    }`}>
-                      {asset.signal}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider inline-block text-center ${
+                        isBuy
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                          : isSell
+                          ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                          : "bg-slate-800 text-slate-400 border border-slate-700"
+                      }`}>
+                        {asset.signal}
+                      </span>
+                      {asset.tp1_price !== undefined && asset.sl_price !== undefined && (
+                        <div className="text-[9px] text-slate-400 flex items-center gap-1 justify-between font-mono">
+                          <span className="text-rose-400">SL: {asset.sl_price}</span>
+                          <span className="text-emerald-400">TP: {asset.tp1_price}</span>
+                          {asset.rr_ratio && (
+                            <span className="text-cyan-300 font-bold ml-0.5">{asset.rr_ratio}R</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </td>
 
                   {/* Execution Trigger */}
                   <td className="py-2.5 px-3 text-right">
-                    <button
-                      onClick={() => onExecuteTrade(asset)}
-                      className="px-2.5 py-1 rounded-lg bg-cyan-600/20 hover:bg-cyan-600 text-cyan-300 hover:text-black border border-cyan-500/40 font-bold text-[10px] transition-all flex items-center gap-1 ml-auto cursor-pointer"
-                    >
-                      <Zap className="w-3 h-3" />
-                      SCALP
-                    </button>
+                    {isSell ? (
+                      <button
+                        onClick={() => onExecuteTrade(asset)}
+                        className="px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold text-[10px] transition-all flex items-center gap-1 ml-auto cursor-pointer"
+                        title="Execute Bearish Short Scalp"
+                      >
+                        <ArrowDownRight className="w-3 h-3 text-rose-400" />
+                        SHORT
+                      </button>
+                    ) : isBuy ? (
+                      <button
+                        onClick={() => onExecuteTrade(asset)}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-black border border-emerald-500/40 font-bold text-[10px] transition-all flex items-center gap-1 ml-auto cursor-pointer"
+                        title="Execute Bullish Long Scalp"
+                      >
+                        <ArrowUpRight className="w-3 h-3 text-emerald-400" />
+                        LONG
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onExecuteTrade(asset)}
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-bold text-[10px] transition-all flex items-center gap-1 ml-auto cursor-pointer"
+                      >
+                        <Zap className="w-3 h-3" />
+                        SCALP
+                      </button>
+                    )}
                   </td>
                 </tr>
               );
