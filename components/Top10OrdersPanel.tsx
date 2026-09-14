@@ -43,24 +43,72 @@ export const Top10OrdersPanel: React.FC<Top10OrdersPanelProps> = ({
 }) => {
   const [filter, setFilter] = useState<"ALL" | "EXECUTED" | "NON_EXECUTED">("ALL");
 
-  // Strictly enforce the Top 10 items
-  const top10 = candidates.slice(0, 10);
+  // 1. Gather all active executed trades & orders first so they are NEVER dropped when rankings shift
+  const executedItems: any[] = [];
+  const processedSymbols = new Set<string>();
 
-  // Match trades and active orders to candidate symbols
-  const orderItems = top10.map((c, idx) => {
-    const trade = activeTrades.find((t) => t.symbol === c.symbol);
-    const order = activeOrders.find((o) => (o.pair === c.symbol || o.market === c.symbol));
-    const isExecuted = Boolean(trade || order);
-
-    return {
-      rank: c.order_rank ?? (idx + 1),
-      candidate: c,
+  activeTrades.forEach((trade, idx) => {
+    processedSymbols.add(trade.symbol);
+    const matchedCandidate = candidates.find((c) => c.symbol === trade.symbol);
+    executedItems.push({
+      rank: matchedCandidate?.order_rank ?? (idx + 1),
+      candidate: matchedCandidate || {
+        symbol: trade.symbol,
+        price: trade.mark_price || trade.entry_price,
+        entry_price: trade.entry_price,
+        sl_price: trade.sl_price,
+        tp1_price: trade.tp1_price,
+        signal: trade.side,
+        confidence: 90.0,
+        win_probability_pct: 85.0
+      },
       trade,
-      order,
-      isExecuted,
-      symbol: c.symbol
-    };
+      order: activeOrders.find((o) => o.pair === trade.symbol || o.market === trade.symbol),
+      isExecuted: true,
+      symbol: trade.symbol
+    });
   });
+
+  // Active untriggered orders not yet in trades
+  activeOrders.forEach((order) => {
+    const sym = order.pair || order.market || "";
+    if (sym && !processedSymbols.has(sym)) {
+      processedSymbols.add(sym);
+      const matchedCandidate = candidates.find((c) => c.symbol === sym);
+      executedItems.push({
+        rank: matchedCandidate?.order_rank ?? (executedItems.length + 1),
+        candidate: matchedCandidate || {
+          symbol: sym,
+          price: order.price || 0,
+          entry_price: order.price || 0,
+          sl_price: order.stop_price,
+          tp1_price: undefined,
+          signal: order.side,
+          confidence: 85.0,
+          win_probability_pct: 80.0
+        },
+        trade: undefined,
+        order,
+        isExecuted: true,
+        symbol: sym
+      });
+    }
+  });
+
+  // 2. Fill the remaining slots with non-executed Top candidates up to 10 total slots
+  const remainingSlots = Math.max(0, 10 - executedItems.length);
+  const nonExecutedCandidates = candidates.filter((c) => !processedSymbols.has(c.symbol)).slice(0, remainingSlots);
+
+  const nonExecutedItems = nonExecutedCandidates.map((c, idx) => ({
+    rank: c.order_rank ?? (executedItems.length + idx + 1),
+    candidate: c,
+    trade: undefined,
+    order: undefined,
+    isExecuted: false,
+    symbol: c.symbol
+  }));
+
+  const orderItems = [...executedItems, ...nonExecutedItems];
 
   const executedCount = orderItems.filter((i) => i.isExecuted).length;
   const nonExecutedCount = orderItems.length - executedCount;
@@ -145,7 +193,8 @@ export const Top10OrdersPanel: React.FC<Top10OrdersPanelProps> = ({
             const tp1Price = trade?.tp1_price || candidate.tp1_price || (isBuy ? entryPrice * 1.0085 : entryPrice * 0.9915);
             const pnl = trade?.unrealized_pnl ?? 0;
             const isProfit = pnl >= 0;
-            const winProb = candidate.win_probability_pct ?? 82.5;
+            const aiConfidence = candidate.confidence ?? (candidate.win_probability_pct ? candidate.win_probability_pct + 4.0 : 88.5);
+            const winProb = candidate.win_probability_pct ?? (aiConfidence * 0.9);
             const meta = getAssetMetadata(symbol);
 
             return (
@@ -192,11 +241,31 @@ export const Top10OrdersPanel: React.FC<Top10OrdersPanelProps> = ({
                     <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
                       isBuy ? "bg-emerald-500/20 text-emerald-400" : "bg-rose-500/20 text-rose-400"
                     }`}>
-                      {trade ? `${trade.side} 10x` : (isBuy ? "BUY" : "SELL")}
+                      {trade ? `${trade.side} ${trade.leverage || 15}x` : `${isBuy ? "BUY" : "SELL"} ${(candidate.effective_leverage || candidate.target_leverage || 15)}x`}
                     </span>
+
+                    {candidate.max_leverage && candidate.max_leverage < 15 && (
+                      <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0" title={`CoinDCX Contract Max Leverage: ${candidate.max_leverage}x`}>
+                        {candidate.max_leverage}x MAX
+                      </span>
+                    )}
+
+                    {/* MTF Alignment & Delta Volume Badges */}
+                    {candidate.mtf_confirmed && (
+                      <span className="hidden sm:inline-flex text-[8px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
+                        3-TF
+                      </span>
+                    )}
+                    {candidate.delta_volume_ratio !== undefined && candidate.delta_volume_ratio !== 0 && (
+                      <span className={`hidden sm:inline-flex text-[8px] font-bold px-1 py-0.2 rounded shrink-0 ${
+                        candidate.delta_volume_ratio > 0 ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"
+                      }`}>
+                        Δ{candidate.delta_volume_ratio > 0 ? "+" : ""}{(candidate.delta_volume_ratio * 100).toFixed(0)}%
+                      </span>
+                    )}
                   </div>
 
-                  {/* Right side: PnL or Win Probability */}
+                  {/* Right side: PnL or AI Conviction & Win Probability */}
                   <div className="text-right shrink-0">
                     {isExecuted && trade ? (
                       <div className="flex flex-col items-end">
@@ -208,9 +277,14 @@ export const Top10OrdersPanel: React.FC<Top10OrdersPanelProps> = ({
                         </span>
                       </div>
                     ) : (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                        ⚡ {winProb.toFixed(1)}%
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          ⚡ {aiConfidence.toFixed(1)}%
+                        </span>
+                        <span className="text-[8px] text-slate-400 mt-0.5">
+                          Win: {winProb.toFixed(0)}%
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>

@@ -14,12 +14,15 @@ import { ExecutionLog } from "../components/ExecutionLog";
 import { ChartVisualizerModal, ChartAssetData } from "../components/ChartVisualizerModal";
 import { DashboardChartView } from "../components/DashboardChartView";
 import { Top10OrdersPanel } from "../components/Top10OrdersPanel";
+import { LeverageStartModal } from "../components/LeverageStartModal";
 
 const BACKEND_URL = "http://localhost:8000";
 
 export default function AlphaScalperDashboard() {
   const [socket, setSocket] = useState<any>(null);
   const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [isLeverageModalOpen, setIsLeverageModalOpen] = useState<boolean>(false);
+  const [leverage, setLeverage] = useState<number>(15);
   const [mode, setMode] = useState<"DEFAULT" | "CUSTOM">("DEFAULT");
   const [latencyMs, setLatencyMs] = useState<number>(0.18);
   const [dailyPnl, setDailyPnl] = useState<number>(0.0);
@@ -62,12 +65,16 @@ export default function AlphaScalperDashboard() {
   });
 
   const [candidates, setCandidates] = useState<any[]>([
-    { symbol: "B-BTC_USDT", price: 77395.40, confidence: 94.2, signal: "STRONG_BUY", volume_24h: 7403500000, spread_pct: 0.02, change_24h: -2.04, obi_10: 0.68, regime: "TRENDING" },
-    { symbol: "B-ETH_USDT", price: 2541.79, confidence: 88.5, signal: "BUY", volume_24h: 8223100000, spread_pct: 0.03, change_24h: -2.95, obi_10: 0.54, regime: "TRENDING" },
-    { symbol: "B-SOL_USDT", price: 101.97, confidence: 96.1, signal: "STRONG_BUY", volume_24h: 1433200000, spread_pct: 0.04, change_24h: -1.60, obi_10: 0.72, regime: "VOLATILITY" },
-    { symbol: "B-XRP_USDT", price: 1.3694, confidence: 82.3, signal: "BUY", volume_24h: 688300000, spread_pct: 0.03, change_24h: -2.08, obi_10: 0.49, regime: "TRENDING" },
-    { symbol: "B-DOGE_USDT", price: 0.0851, confidence: 76.5, signal: "BUY", volume_24h: 279200000, spread_pct: 0.04, change_24h: -1.70, obi_10: 0.38, regime: "VOLATILITY" },
-    { symbol: "B-SUI_USDT", price: 0.7255, confidence: 91.4, signal: "STRONG_BUY", volume_24h: 201500000, spread_pct: 0.03, change_24h: -3.70, obi_10: 0.61, regime: "VOLATILITY" }
+    { symbol: "B-BTC_USDT", price: 77285.00, confidence: 94.2, win_probability_pct: 86.5, signal: "STRONG_BUY", volume_24h: 7403500000, spread_pct: 0.02, change_24h: -1.24, obi_10: 0.68, regime: "TRENDING", order_rank: 1 },
+    { symbol: "B-ETH_USDT", price: 2541.79, confidence: 88.5, win_probability_pct: 82.0, signal: "BUY", volume_24h: 4223100000, spread_pct: 0.03, change_24h: -2.15, obi_10: 0.54, regime: "TRENDING", order_rank: 2 },
+    { symbol: "B-SOL_USDT", price: 101.97, confidence: 96.1, win_probability_pct: 89.4, signal: "STRONG_BUY", volume_24h: 1433200000, spread_pct: 0.04, change_24h: 3.60, obi_10: 0.72, regime: "VOLATILITY", order_rank: 3 },
+    { symbol: "B-XRP_USDT", price: 1.3694, confidence: 82.3, win_probability_pct: 78.5, signal: "BUY", volume_24h: 688300000, spread_pct: 0.03, change_24h: -0.88, obi_10: 0.49, regime: "TRENDING", order_rank: 4 },
+    { symbol: "B-DOGE_USDT", price: 0.0851, confidence: 76.5, win_probability_pct: 72.8, signal: "BUY", volume_24h: 279200000, spread_pct: 0.04, change_24h: 1.40, obi_10: 0.38, regime: "VOLATILITY", order_rank: 5 },
+    { symbol: "B-SUI_USDT", price: 0.7255, confidence: 91.4, win_probability_pct: 84.6, signal: "STRONG_BUY", volume_24h: 201500000, spread_pct: 0.03, change_24h: 4.70, obi_10: 0.61, regime: "VOLATILITY", order_rank: 6 },
+    { symbol: "B-ADA_USDT", price: 0.4280, confidence: 79.8, win_probability_pct: 75.2, signal: "BUY", volume_24h: 185000000, spread_pct: 0.03, change_24h: -1.10, obi_10: 0.41, regime: "TRENDING", order_rank: 7 },
+    { symbol: "B-AVAX_USDT", price: 24.15, confidence: 85.2, win_probability_pct: 79.0, signal: "BUY", volume_24h: 165000000, spread_pct: 0.04, change_24h: 2.30, obi_10: 0.45, regime: "VOLATILITY", order_rank: 8 },
+    { symbol: "B-LINK_USDT", price: 14.82, confidence: 87.6, win_probability_pct: 81.3, signal: "BUY", volume_24h: 142000000, spread_pct: 0.03, change_24h: 0.95, obi_10: 0.52, regime: "TRENDING", order_rank: 9 },
+    { symbol: "B-NEAR_USDT", price: 4.95, confidence: 83.4, win_probability_pct: 77.5, signal: "BUY", volume_24h: 115000000, spread_pct: 0.04, change_24h: -0.45, obi_10: 0.43, regime: "VOLATILITY", order_rank: 10 }
   ]);
 
   const [activeTrades, setActiveTrades] = useState<any[]>([]);
@@ -118,6 +125,9 @@ export default function AlphaScalperDashboard() {
       if (data.mode) setMode(data.mode);
       if (data.config) setStrategyConfig(data.config);
       if (data.stats) setStats((prev: any) => ({ ...prev, ...data.stats }));
+      if (data.top_10_filtered && data.top_10_filtered.length > 0) {
+        setCandidates(data.top_10_filtered);
+      }
     });
 
     s.on("telemetry_update", (data: any) => {
@@ -150,6 +160,26 @@ export default function AlphaScalperDashboard() {
       }));
     });
 
+    s.on("screener_update", (data: any) => {
+      if (data.top_10_filtered && data.top_10_filtered.length > 0) {
+        setCandidates(data.top_10_filtered);
+      } else if (data.top_100_filtered && data.top_100_filtered.length > 0) {
+        setCandidates(data.top_100_filtered.slice(0, 10));
+      }
+    });
+
+    s.on("positions_update", (data: any) => {
+      if (data.positions && Array.isArray(data.positions)) {
+        handleRefreshPositionsAndOrders();
+      }
+    });
+
+    s.on("orders_update", (data: any) => {
+      if (data.orders && Array.isArray(data.orders)) {
+        setActiveOrders(data.orders);
+      }
+    });
+
     s.on("execution_event", (event: any) => {
       const timeStr = new Date().toLocaleTimeString() + "." + Math.floor(Math.random() * 900 + 100);
       setLogs((prev) => [
@@ -160,6 +190,8 @@ export default function AlphaScalperDashboard() {
         },
         ...prev.slice(0, 40)
       ]);
+      // Invalidate and refresh positions/orders on any execution event
+      handleRefreshPositionsAndOrders();
     });
 
     setSocket(s);
@@ -242,51 +274,67 @@ export default function AlphaScalperDashboard() {
   // Pre-flight CoinDCX API verification & live market scan on component mount
   useEffect(() => {
     handleVerifyCoinDCX();
+    handleRefreshPositionsAndOrders();
     handleRefreshScan();
-    const verifyInterval = setInterval(handleVerifyCoinDCX, 30000); // refresh verification every 30s
-    const scanInterval = setInterval(handleRefreshScan, 4000); // refresh live screener prices every 4s
+    const verifyInterval = setInterval(handleVerifyCoinDCX, 60000); // verify every 60s
     return () => {
       clearInterval(verifyInterval);
-      clearInterval(scanInterval);
     };
   }, []);
 
-  // Poll positions & active orders periodically
+  // Poll positions & active orders strictly every 1 minute (60,000ms) to sync with 1-min SL/TP auto-heal loop
   useEffect(() => {
     const interval = setInterval(async () => {
-      try {
-        const [posRes, ordRes] = await Promise.all([
-          fetch(`${BACKEND_URL}/api/v1/positions`),
-          fetch(`${BACKEND_URL}/api/v1/orders/active`)
-        ]);
-        if (posRes.ok) {
-          const data = await posRes.json();
-          if (data.active_trades) {
-            setActiveTrades(data.active_trades);
-          }
-        }
-        if (ordRes.ok) {
-          const data = await ordRes.json();
-          if (data.orders) {
-            setActiveOrders(data.orders);
-          }
-        }
-      } catch (e) {
-        // Backend offline or starting
-      }
-    }, 2000);
+      handleRefreshPositionsAndOrders();
+    }, 60000); // Strictly 1-minute interval
     return () => clearInterval(interval);
   }, []);
 
   const handleToggleEngine = async () => {
-    const endpoint = isRunning ? "/api/v1/engine/stop" : "/api/v1/engine/start";
-    try {
-      const res = await fetch(`${BACKEND_URL}${endpoint}`, { method: "POST" });
-      if (res.ok) {
-        setIsRunning(!isRunning);
+    if (isRunning) {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/v1/engine/stop`, { method: "POST" });
+        if (res.ok) {
+          setIsRunning(false);
+        }
+      } catch (e) {
+        setIsRunning(false);
       }
-    } catch (e) {
-      setIsRunning(!isRunning);
+    } else {
+      // Prompt with interactive Manual Leverage modal before starting
+      setIsLeverageModalOpen(true);
+    }
+  };
+
+  const handleConfirmLeverage = async (chosenLeverage: number) => {
+    setLeverage(chosenLeverage);
+    setIsLeverageModalOpen(false);
+
+    if (isRunning) {
+      // If already running, update leverage dynamically on the fly
+      try {
+        await fetch(`${BACKEND_URL}/api/v1/strategy/configure`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leverage: chosenLeverage })
+        });
+        handleRefreshScan();
+      } catch (e) {}
+    } else {
+      // Start the engine with chosen leverage
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/v1/engine/start`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leverage: chosenLeverage })
+        });
+        if (res.ok) {
+          setIsRunning(true);
+          handleRefreshScan();
+        }
+      } catch (e) {
+        setIsRunning(true);
+      }
     }
   };
 
@@ -497,10 +545,12 @@ export default function AlphaScalperDashboard() {
         killSwitchActive={killSwitchActive}
         coindcxStatus={coindcxStatus}
         isVerifying={isVerifying}
+        leverage={leverage}
         onToggleEngine={handleToggleEngine}
         onKillSwitch={handleKillSwitch}
         onRefreshScan={handleRefreshScan}
         onVerifyCoinDCX={handleVerifyCoinDCX}
+        onOpenLeverageModal={() => setIsLeverageModalOpen(true)}
       />
 
       {/* Main Container */}
@@ -569,8 +619,17 @@ export default function AlphaScalperDashboard() {
         {/* Performance Stats Cards */}
         <PerformanceStats stats={stats} onResetStats={handleResetStats} />
 
-        {/* Mode Selector */}
-        <ModeSelector currentMode={mode} onSelectMode={handleSelectMode} />
+        {/* Mode Selector & Autopilot Execution Suite */}
+        <ModeSelector
+          currentMode={mode}
+          onSelectMode={handleSelectMode}
+          isRunning={isRunning}
+          onToggleEngine={handleToggleEngine}
+          leverage={leverage}
+          onOpenLeverageModal={() => setIsLeverageModalOpen(true)}
+          killSwitchActive={killSwitchActive}
+          onKillSwitch={handleKillSwitch}
+        />
 
         {/* Custom Studio Inputs Panel (Visible in Custom Mode) */}
         {mode === "CUSTOM" && (
@@ -700,6 +759,16 @@ export default function AlphaScalperDashboard() {
         asset={selectedChartAsset}
         onExecuteTrade={handleExecuteSingleTrade}
         onExitTrade={handleExitSingleTrade}
+      />
+
+      {/* Manual Leverage Setting Modal */}
+      <LeverageStartModal
+        isOpen={isLeverageModalOpen}
+        onClose={() => setIsLeverageModalOpen(false)}
+        onConfirm={handleConfirmLeverage}
+        currentLeverage={leverage}
+        isRunning={isRunning}
+        usableBalanceUsdt={coindcxStatus?.total_usdt_balance ?? 7.5}
       />
     </div>
   );

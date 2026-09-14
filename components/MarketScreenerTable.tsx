@@ -40,6 +40,13 @@ export interface ScreenerAsset {
   execution_status?: string;
   order_rank?: number;
   is_executable?: boolean;
+  tri_timeframe_alignment?: number;
+  mtf_confirmed?: boolean;
+  delta_volume_ratio?: number;
+  tf_15m_bias?: number;
+  tf_5m_bias?: number;
+  tf_1m_bias?: number;
+  is_authentic_mtf?: boolean;
 }
 
 interface MarketScreenerTableProps {

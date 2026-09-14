@@ -16,7 +16,8 @@ import {
   ArrowUpRight,
   Menu,
   ChevronRight,
-  Sliders
+  Sliders,
+  Zap
 } from "lucide-react";
 import { Logo } from "./Logo";
 
@@ -54,10 +55,12 @@ interface HeaderProps {
   killSwitchActive: boolean;
   coindcxStatus?: CoinDCXVerificationData | null;
   isVerifying?: boolean;
+  leverage?: number;
   onToggleEngine: () => void;
   onKillSwitch: () => void;
   onRefreshScan: () => void;
   onVerifyCoinDCX?: () => void;
+  onOpenLeverageModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -68,10 +71,12 @@ export const Header: React.FC<HeaderProps> = ({
   killSwitchActive,
   coindcxStatus,
   isVerifying = false,
+  leverage = 15,
   onToggleEngine,
   onKillSwitch,
   onRefreshScan,
-  onVerifyCoinDCX
+  onVerifyCoinDCX,
+  onOpenLeverageModal
 }) => {
   const [showModal, setShowModal] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -84,33 +89,68 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <>
-      <header className="border-b border-slate-800/80 bg-[#07090e]/90 backdrop-blur-2xl sticky top-0 z-40 transition-all shadow-xl shadow-black/40">
-        <div className="max-w-[1720px] mx-auto px-3 sm:px-5 lg:px-6 py-2.5 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-4">
+      <header className="border-b border-slate-800/80 bg-[#07090e]/95 backdrop-blur-2xl sticky top-0 z-40 transition-all shadow-xl shadow-black/40">
+        <div className="max-w-[1720px] mx-auto px-2.5 sm:px-4 lg:px-6 py-2 sm:py-2.5 lg:py-3 flex items-center justify-between gap-1.5 sm:gap-3">
           {/* 1. Left: Brand & Premium Logo */}
-          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <Logo size="md" variant="full" />
-            <span className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-gradient-to-r from-cyan-500/15 via-blue-500/15 to-purple-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm">
+            <span className="hidden 2xl:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-gradient-to-r from-cyan-500/15 via-blue-500/15 to-purple-500/15 text-cyan-300 border border-cyan-500/30 shadow-sm whitespace-nowrap">
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
               INSTITUTIONAL HFT
             </span>
           </div>
 
-          {/* Mobile Quick Collateral Pill (Visible only on < md) */}
-          <button
-            onClick={() => setShowModal(true)}
-            className="md:hidden flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-900/90 border border-slate-800 text-[11px] font-mono text-cyan-300 font-bold active:scale-95 transition-transform"
-            title="CoinDCX Futures Verified Margin"
-          >
-            <Wallet className="w-3 h-3 text-cyan-400" />
-            <span>₹{inrBal.toFixed(0)}</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          </button>
+          {/* Mobile (< md) Quick Collateral & Leverage Pills */}
+          <div className="md:hidden flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {/* Mobile Margin Pill */}
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-900/90 border border-slate-800 text-[10px] sm:text-[11px] font-mono text-cyan-300 font-bold active:scale-95 transition-transform whitespace-nowrap cursor-pointer"
+              title="CoinDCX Futures Verified Margin"
+            >
+              <Wallet className="w-3 h-3 text-cyan-400 shrink-0" />
+              <span>₹{inrBal.toFixed(0)}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            </button>
 
-          {/* 2. Center: Desktop & Tablet Telemetry Bar (Adapts smoothly across screen widths) */}
-          <div className="hidden md:flex items-center gap-2 lg:gap-2.5 text-xs font-mono">
+            {/* Mobile Manual Leverage Pill */}
+            <button
+              onClick={onOpenLeverageModal}
+              className="flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-900/90 border border-cyan-500/40 text-[10px] sm:text-[11px] font-mono text-cyan-300 font-bold active:scale-95 transition-transform whitespace-nowrap cursor-pointer"
+              title="CoinDCX Manual Leverage (Click to Change)"
+            >
+              <Zap className="w-3 h-3 text-cyan-400 shrink-0" />
+              <span>{leverage}x</span>
+            </button>
+
+            {/* Mobile Engine Status Pill */}
+            <div
+              className={`px-2 py-1 rounded-xl border flex items-center gap-1 text-[10px] font-mono font-bold whitespace-nowrap ${
+                isRunning
+                  ? "bg-emerald-950/40 border-emerald-500/40 text-emerald-300"
+                  : "bg-amber-950/40 border-amber-500/40 text-amber-300"
+              }`}
+              title={isRunning ? "Autonomous Engine Running" : "Engine Standby"}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isRunning ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+              <span>{isRunning ? "LIVE" : "IDLE"}</span>
+            </div>
+
+            {/* Mobile Hamburger Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-1.5 sm:p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              aria-label="Toggle Navigation Menu"
+            >
+              {mobileMenuOpen ? <X className="w-4 h-4 sm:w-5 sm:h-5" /> : <Menu className="w-4 h-4 sm:w-5 sm:h-5" />}
+            </button>
+          </div>
+
+          {/* 2. Center & Right: Desktop Telemetry & Status Bar (Uncluttered, Never Cuts Off) */}
+          <div className="hidden md:flex items-center gap-1.5 lg:gap-2.5 text-xs font-mono shrink-0">
             {/* Engine Status */}
-            <div className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 shadow-inner">
-              <span className={`w-2 h-2 rounded-full ${isRunning ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+            <div className="flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 shadow-inner whitespace-nowrap">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${isRunning ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
               <span className="text-slate-400 text-[11px] hidden lg:inline">ENGINE:</span>
               <span className={`font-bold text-[11px] ${isRunning ? "text-emerald-400" : "text-amber-400"}`}>
                 {isRunning ? "RUNNING" : "STANDBY"}
@@ -123,7 +163,7 @@ export const Header: React.FC<HeaderProps> = ({
                 if (onVerifyCoinDCX) onVerifyCoinDCX();
                 setShowModal(true);
               }}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-xl border transition-all cursor-pointer whitespace-nowrap ${
                 isAuthValid
                   ? "bg-emerald-950/30 border-emerald-500/40 text-emerald-400 hover:bg-emerald-900/40 hover:border-emerald-400"
                   : "bg-amber-950/30 border-amber-500/40 text-amber-400 hover:bg-amber-900/40"
@@ -131,9 +171,9 @@ export const Header: React.FC<HeaderProps> = ({
               title="Click to view CoinDCX API Diagnostics & Live Balances"
             >
               {isAuthValid ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
               ) : (
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 animate-pulse shrink-0" />
               )}
               <span className="text-slate-400 text-[11px] hidden lg:inline">COINDCX:</span>
               <span className="font-bold text-[11px]">{isAuthValid ? "VERIFIED" : "SYNCING"}</span>
@@ -142,10 +182,10 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Live Wallet Balance Button */}
             <button
               onClick={() => setShowModal(true)}
-              className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-800/80 transition-all cursor-pointer shadow-inner group"
+              className="flex items-center gap-1.5 lg:gap-2 px-2.5 lg:px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-cyan-500/50 hover:bg-slate-800/80 transition-all cursor-pointer shadow-inner group whitespace-nowrap"
               title="CoinDCX Live Futures Collateral & Margin (Click for Details)"
             >
-              <Wallet className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
+              <Wallet className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform shrink-0" />
               <span className="text-slate-400 text-[11px] hidden lg:inline">MARGIN:</span>
               <span className="font-bold text-white font-mono text-[11px]">
                 ₹{inrBal.toFixed(0)} <span className="text-slate-400 font-normal">(${usableBal.toFixed(2)})</span>
@@ -155,21 +195,15 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </button>
 
-            {/* Mode Badge (Visible on xl+) */}
-            <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800">
-              <span className="text-slate-400 text-[11px]">MODE:</span>
-              <span className="text-cyan-400 font-bold text-[11px]">{mode}</span>
-            </div>
-
-            {/* Latency Monitor (Visible on 2xl+) */}
-            <div className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800">
-              <Wifi className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-slate-400 text-[11px]">LATENCY:</span>
+            {/* Latency Monitor */}
+            <div className="flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 whitespace-nowrap">
+              <Wifi className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+              <span className="text-slate-400 text-[11px] hidden lg:inline">LATENCY:</span>
               <span className="text-cyan-400 font-semibold text-[11px]">{latencyMs || 0.18}ms</span>
             </div>
 
             {/* 24h PnL Badge */}
-            <div className={`px-2.5 sm:px-3 py-1.5 rounded-xl border flex items-center gap-1.5 ${
+            <div className={`flex px-2.5 lg:px-3 py-1.5 rounded-xl border items-center gap-1.5 whitespace-nowrap ${
               isProfit 
                 ? "bg-emerald-950/30 border-emerald-500/30 text-emerald-400" 
                 : "bg-red-950/30 border-red-500/30 text-red-400"
@@ -179,96 +213,71 @@ export const Header: React.FC<HeaderProps> = ({
                 {isProfit ? "+" : ""}${dailyPnl.toFixed(2)}
               </span>
             </div>
-          </div>
 
-          {/* 3. Right: Controls & Mobile Trigger */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Force Rescan (Desktop/Tablet) */}
+            {/* Force Rescan Button */}
             <button
               onClick={onRefreshScan}
               title="Force Re-scan 500+ Asset Universe"
-              className="hidden sm:flex p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 transition-colors border border-slate-800"
+              className="p-1.5 lg:p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 transition-colors border border-slate-800 cursor-pointer"
             >
               <RefreshCw className="w-4 h-4" />
-            </button>
-
-            {/* Start / Pause Engine Button (Visible across all screens) */}
-            <button
-              onClick={onToggleEngine}
-              className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl font-bold text-xs tracking-wider transition-all shadow-md cursor-pointer ${
-                isRunning
-                  ? "bg-amber-500/15 text-amber-300 border border-amber-500/40 hover:bg-amber-500/25"
-                  : "bg-gradient-to-r from-emerald-500 to-teal-500 text-black hover:from-emerald-400 hover:to-teal-400 shadow-emerald-500/20"
-              }`}
-            >
-              {isRunning ? (
-                <>
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                  <span className="hidden sm:inline">PAUSE SCALPER</span>
-                  <span className="sm:hidden">PAUSE</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span className="hidden sm:inline">START SCALPER</span>
-                  <span className="sm:hidden">START</span>
-                </>
-              )}
-            </button>
-
-            {/* Emergency Kill Switch (Desktop/Tablet) */}
-            <button
-              onClick={onKillSwitch}
-              className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
-                killSwitchActive
-                  ? "bg-red-600 text-white animate-pulse border-red-400 shadow-lg shadow-red-600/30"
-                  : "bg-red-950/20 text-red-400 border-red-800/40 hover:bg-red-600 hover:text-white"
-              }`}
-              title="Emergency HFT Kill-Switch (Instantly flattens all orders and stops engine)"
-            >
-              <ShieldAlert className="w-4 h-4" />
-              <span>KILL SWITCH</span>
-            </button>
-
-            {/* Mobile Drawer Hamburger Button (Visible only on mobile < md) */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-colors"
-              aria-label="Toggle Navigation Menu"
-            >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
 
         {/* 4. Mobile Slide-Over Drawer Sheet */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-slate-800 bg-[#07090e]/95 backdrop-blur-2xl px-4 py-4 space-y-4 animate-in slide-in-from-top duration-200">
+          <div className="md:hidden border-t border-slate-800 bg-[#07090e]/95 backdrop-blur-2xl px-4 py-4 space-y-3 animate-in slide-in-from-top duration-200 font-mono">
             {/* Telemetry Summary Grid */}
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
-                <span className="text-slate-400">ENGINE:</span>
-                <span className={`font-bold ${isRunning ? "text-emerald-400" : "text-amber-400"}`}>
+                <span className="text-slate-400 text-[11px]">ENGINE:</span>
+                <span className={`font-bold text-[11px] ${isRunning ? "text-emerald-400" : "text-amber-400"}`}>
                   {isRunning ? "AUTONOMOUS" : "STANDBY"}
                 </span>
               </div>
 
               <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
-                <span className="text-slate-400">MODE:</span>
-                <span className="font-bold text-cyan-400">{mode}</span>
+                <span className="text-slate-400 text-[11px]">MODE:</span>
+                <span className="font-bold text-cyan-400 text-[11px]">{mode}</span>
               </div>
 
               <div className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
-                <span className="text-slate-400">LATENCY:</span>
-                <span className="font-semibold text-cyan-400">{latencyMs || 0.18}ms</span>
+                <span className="text-slate-400 text-[11px]">LATENCY:</span>
+                <span className="font-semibold text-cyan-400 text-[11px]">{latencyMs || 0.18}ms</span>
               </div>
 
               <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
                 isProfit ? "bg-emerald-950/20 border-emerald-500/30 text-emerald-400" : "bg-red-950/20 border-red-500/30 text-red-400"
               }`}>
-                <span className="text-slate-400">24H PNL:</span>
-                <span className="font-bold">{isProfit ? "+" : ""}${dailyPnl.toFixed(2)}</span>
+                <span className="text-slate-400 text-[11px]">24H PNL:</span>
+                <span className="font-bold text-[11px]">{isProfit ? "+" : ""}${dailyPnl.toFixed(2)}</span>
               </div>
+            </div>
+
+            {/* Mobile Manual Leverage Setting Trigger */}
+            <div
+              onClick={() => {
+                if (onOpenLeverageModal) onOpenLeverageModal();
+                setMobileMenuOpen(false);
+              }}
+              className="p-3 rounded-xl bg-slate-900 border border-cyan-500/30 hover:border-cyan-400 flex items-center justify-between cursor-pointer transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-cyan-500/15 text-cyan-400">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-white flex items-center gap-2">
+                    <span>MANUAL LEVERAGE: {leverage}x</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                      EDIT
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-400">Set CoinDCX Isolated Futures Leverage</div>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500" />
             </div>
 
             {/* Mobile Wallet & Diagnostic Trigger */}
@@ -280,10 +289,12 @@ export const Header: React.FC<HeaderProps> = ({
               className="p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/40 flex items-center justify-between cursor-pointer transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <Wallet className="w-4 h-4 text-cyan-400" />
+                <div className="p-1.5 rounded-lg bg-slate-800 text-cyan-400">
+                  <Wallet className="w-4 h-4" />
+                </div>
                 <div>
                   <div className="text-xs font-bold text-white">
-                    ₹{inrBal.toFixed(2)} INR (~${usableBal.toFixed(2)} USDT)
+                    ₹{inrBal.toFixed(0)} INR (~${usableBal.toFixed(2)} USDT)
                   </div>
                   <div className="text-[10px] text-slate-400">CoinDCX Futures Verified Collateral</div>
                 </div>
@@ -291,17 +302,39 @@ export const Header: React.FC<HeaderProps> = ({
               <ChevronRight className="w-4 h-4 text-slate-500" />
             </div>
 
+            {/* Primary Start / Pause Button inside Mobile Menu */}
+            <button
+              onClick={() => {
+                if (isRunning) {
+                  onToggleEngine();
+                } else if (onOpenLeverageModal) {
+                  onOpenLeverageModal();
+                } else {
+                  onToggleEngine();
+                }
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
+                isRunning
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
+                  : "bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 text-black shadow-emerald-500/20 hover:opacity-95"
+              }`}
+            >
+              {isRunning ? <Square className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+              <span>{isRunning ? "PAUSE SCALPER" : `START SCALPER (${leverage}x)`}</span>
+            </button>
+
             {/* Mobile Action Controls */}
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
               <button
                 onClick={() => {
                   onRefreshScan();
                   setMobileMenuOpen(false);
                 }}
-                className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs font-bold hover:bg-slate-800 transition-colors"
+                className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-200 text-xs font-bold hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
-                RE-SCAN (500+)
+                RE-SCAN
               </button>
 
               <button
@@ -309,7 +342,7 @@ export const Header: React.FC<HeaderProps> = ({
                   onKillSwitch();
                   setMobileMenuOpen(false);
                 }}
-                className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-950/30 border border-red-800/50 text-red-400 text-xs font-bold hover:bg-red-600 hover:text-white transition-colors"
+                className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-950/30 border border-red-800/50 text-red-400 text-xs font-bold hover:bg-red-600 hover:text-white transition-colors cursor-pointer"
               >
                 <ShieldAlert className="w-3.5 h-3.5" />
                 KILL SWITCH
