@@ -47,6 +47,7 @@ export interface ActiveOrder {
 interface WinWinPositionManagerProps {
   activeTrades: ActiveTrade[];
   activeOrders?: ActiveOrder[];
+  currency?: "INR" | "USDT";
   onExitTrade: (tradeId: string) => void;
   onExitAll: () => void;
   onCancelOrder?: (orderId: string) => void;
@@ -58,6 +59,7 @@ interface WinWinPositionManagerProps {
 export const WinWinPositionManager: React.FC<WinWinPositionManagerProps> = ({
   activeTrades,
   activeOrders = [],
+  currency = "INR",
   onExitTrade,
   onExitAll,
   onCancelOrder,
@@ -252,15 +254,32 @@ export const WinWinPositionManager: React.FC<WinWinPositionManagerProps> = ({
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-2 border-t border-slate-800/80 gap-2.5">
                       <div>
                         <div className="text-[10px] text-slate-400 font-mono">
-                          MARGIN: <span className="text-slate-200 font-bold">₹{Number(trade.locked_margin_inr || (trade.locked_margin_usdt ? trade.locked_margin_usdt * 87.5 : 55)).toFixed(1)} INR</span>
-                          <span className="text-slate-500 text-[9px] ml-1">(${Number(trade.locked_margin_usdt || 0.63).toFixed(2)})</span>
+                          MARGIN:{" "}
+                          <span className="text-slate-200 font-bold">
+                            {currency === "INR" 
+                              ? `₹${Number(trade.locked_margin_inr || (trade.locked_margin_usdt ? trade.locked_margin_usdt * 87.5 : 55)).toFixed(1)} INR` 
+                              : `$${Number(trade.locked_margin_usdt || 0.63).toFixed(2)} USDT`}
+                          </span>
+                          <span className="text-slate-500 text-[9px] ml-1">
+                            {currency === "INR" 
+                              ? `($${Number(trade.locked_margin_usdt || 0.63).toFixed(2)})` 
+                              : `(₹${Number(trade.locked_margin_inr || (trade.locked_margin_usdt ? trade.locked_margin_usdt * 87.5 : 55)).toFixed(1)})`}
+                          </span>
                         </div>
                         <div className="flex items-baseline gap-2 mt-0.5">
                           <span className={`text-sm sm:text-base font-bold font-mono ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                            {isProfit ? "+" : ""}${Number(trade.unrealized_pnl || 0).toFixed(4)}
+                            {currency === "INR" ? (
+                              <>{isProfit ? "+" : ""}₹{Number(trade.unrealized_pnl_inr || (trade.unrealized_pnl ? trade.unrealized_pnl * 87.5 : 0)).toFixed(2)} INR</>
+                            ) : (
+                              <>{isProfit ? "+" : ""}${Number(trade.unrealized_pnl || 0).toFixed(4)} USDT</>
+                            )}
                           </span>
                           <span className={`text-[11px] font-semibold font-mono ${isProfit ? "text-emerald-300" : "text-red-300"}`}>
-                            ({isProfit ? "+" : ""}₹{Number(trade.unrealized_pnl_inr || (trade.unrealized_pnl ? trade.unrealized_pnl * 87.5 : 0)).toFixed(2)})
+                            {currency === "INR" ? (
+                              <>({isProfit ? "+" : ""}${Number(trade.unrealized_pnl || 0).toFixed(4)} USDT)</>
+                            ) : (
+                              <>({isProfit ? "+" : ""}₹{Number(trade.unrealized_pnl_inr || (trade.unrealized_pnl ? trade.unrealized_pnl * 87.5 : 0)).toFixed(2)})</>
+                            )}
                           </span>
                           {trade.roe_percent !== undefined && (
                             <span className={`text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded font-bold ${

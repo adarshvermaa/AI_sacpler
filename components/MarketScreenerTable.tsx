@@ -58,6 +58,7 @@ interface MarketScreenerTableProps {
   executedOrdersCount?: number;
   maxExecutableOrders?: number;
   totalUniverseScanned?: number;
+  currency?: "INR" | "USDT";
 }
 
 export const MarketScreenerTable: React.FC<MarketScreenerTableProps> = ({
@@ -68,7 +69,8 @@ export const MarketScreenerTable: React.FC<MarketScreenerTableProps> = ({
   onViewChart,
   executedOrdersCount = 0,
   maxExecutableOrders = 10,
-  totalUniverseScanned = 1500
+  totalUniverseScanned = 1500,
+  currency = "INR"
 }) => {
   const [search, setSearch] = useState("");
   const [filterSignal, setFilterSignal] = useState<string>("ALL");
@@ -233,7 +235,9 @@ export const MarketScreenerTable: React.FC<MarketScreenerTableProps> = ({
                     <span>⚡ Edge: {winProb.toFixed(1)}%</span>
                   </div>
                   <div className="text-slate-400 text-[10px]">
-                    Alloc: <strong className="text-white">${asset.allocation_usdt || 6.00}</strong> (₹{Math.round((asset.margin_required_usdt || 0.6) * 87.5)} margin)
+                    {currency === "INR" 
+                      ? <>Margin: <strong className="text-white">₹{Math.round((asset.margin_required_usdt || 0.6) * 87.5)}</strong> (${asset.allocation_usdt || 6.00})</>
+                      : <>Alloc: <strong className="text-white">${asset.allocation_usdt || 6.00}</strong> (₹{Math.round((asset.margin_required_usdt || 0.6) * 87.5)} margin)</>}
                   </div>
                 </div>
 
@@ -344,8 +348,17 @@ export const MarketScreenerTable: React.FC<MarketScreenerTableProps> = ({
                     {/* Dynamic Capital Allocation */}
                     <td className="py-2.5 px-3 hidden lg:table-cell whitespace-nowrap">
                       <div className="text-[11px]">
-                        <span className="text-white font-bold">${asset.allocation_usdt || 6.00}</span>
-                        <span className="text-slate-500 text-[10px] ml-1">(₹{Math.round((asset.margin_required_usdt || 0.6) * 87.5)})</span>
+                        {currency === "INR" ? (
+                          <>
+                            <span className="text-white font-bold">₹{Math.round((asset.margin_required_usdt || 0.6) * 87.5)}</span>
+                            <span className="text-slate-500 text-[10px] ml-1">(${asset.allocation_usdt || 6.00})</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-white font-bold">${asset.allocation_usdt || 6.00}</span>
+                            <span className="text-slate-500 text-[10px] ml-1">(₹{Math.round((asset.margin_required_usdt || 0.6) * 87.5)})</span>
+                          </>
+                        )}
                       </div>
                     </td>
 

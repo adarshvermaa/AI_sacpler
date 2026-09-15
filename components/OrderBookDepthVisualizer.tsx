@@ -22,7 +22,8 @@ export const OrderBookDepthVisualizer: React.FC<OrderBookDepthVisualizerProps> =
     const fetchOB = async () => {
       try {
         const cleanSymbol = symbol.startsWith("B-") ? symbol : `B-${symbol.replace("/", "_")}`;
-        const res = await fetch(`http://localhost:8000/api/v1/markets/orderbook?symbol=${cleanSymbol}`);
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+        const res = await fetch(`${backendUrl}/api/v1/markets/orderbook?symbol=${cleanSymbol}`);
         if (res.ok) {
           const data = await res.json();
           if (isMounted && data.bids && Object.keys(data.bids).length > 0) {

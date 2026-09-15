@@ -16,6 +16,7 @@ interface LeverageStartModalProps {
   currentLeverage?: number;
   isRunning?: boolean;
   usableBalanceUsdt?: number;
+  currency?: "INR" | "USDT";
 }
 
 const PRESET_LEVERAGES = [
@@ -33,7 +34,8 @@ export const LeverageStartModal: React.FC<LeverageStartModalProps> = ({
   onConfirm,
   currentLeverage = 15,
   isRunning = false,
-  usableBalanceUsdt = 7.5
+  usableBalanceUsdt = 7.5,
+  currency = "INR"
 }) => {
   const [selectedLev, setSelectedLev] = useState<number>(currentLeverage || 15);
   const [customInput, setCustomInput] = useState<string>(String(currentLeverage || 15));
@@ -197,12 +199,14 @@ export const LeverageStartModal: React.FC<LeverageStartModalProps> = ({
           {/* Live Risk & Margin Preview Matrix */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-gradient-to-br from-slate-950 to-[#0c1220] p-3 rounded-2xl border border-slate-800/90 text-[11px]">
             <div className="flex flex-col gap-0.5">
-              <span className="text-slate-500 text-[9px] uppercase">Margin per $6 Order</span>
+              <span className="text-slate-500 text-[9px] uppercase">
+                {currency === "INR" ? "Margin per Contract" : "Margin per $6 Order"}
+              </span>
               <span className="font-bold text-cyan-300">
-                ${reqMarginUsdt.toFixed(2)} USDT
+                {currency === "INR" ? `₹${reqMarginInr.toFixed(0)} INR` : `$${reqMarginUsdt.toFixed(2)} USDT`}
               </span>
               <span className="text-[9px] text-slate-400">
-                (~₹{reqMarginInr.toFixed(0)} INR)
+                {currency === "INR" ? `(~$${reqMarginUsdt.toFixed(2)} USDT)` : `(~₹${reqMarginInr.toFixed(0)} INR)`}
               </span>
             </div>
 

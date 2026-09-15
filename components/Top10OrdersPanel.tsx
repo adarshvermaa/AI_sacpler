@@ -22,6 +22,7 @@ interface Top10OrdersPanelProps {
   candidates: ScreenerAsset[];
   activeTrades: ActiveTrade[];
   activeOrders?: ActiveOrder[];
+  currency?: "INR" | "USDT";
   selectedSymbol: string;
   onSelectSymbol: (symbol: string) => void;
   onExecuteTrade: (asset: any) => void;
@@ -34,6 +35,7 @@ export const Top10OrdersPanel: React.FC<Top10OrdersPanelProps> = ({
   candidates,
   activeTrades,
   activeOrders = [],
+  currency = "INR",
   selectedSymbol,
   onSelectSymbol,
   onExecuteTrade,
@@ -270,10 +272,14 @@ export const Top10OrdersPanel: React.FC<Top10OrdersPanelProps> = ({
                     {isExecuted && trade ? (
                       <div className="flex flex-col items-end">
                         <span className={`text-xs font-bold ${isProfit ? "text-emerald-400" : "text-red-400"}`}>
-                          {isProfit ? "+" : ""}${Number(pnl).toFixed(2)}
+                          {currency === "INR" 
+                            ? `${isProfit ? "+" : ""}₹${Math.round(Number(pnl) * 87.5)}` 
+                            : `${isProfit ? "+" : ""}$${Number(pnl).toFixed(2)}`}
                         </span>
                         <span className={`text-[9px] font-semibold ${isProfit ? "text-emerald-300" : "text-red-300"}`}>
-                          ({isProfit ? "+" : ""}₹{Math.round(Number(pnl) * 87.5)})
+                          {currency === "INR" 
+                            ? `(${isProfit ? "+" : ""}$${Number(pnl).toFixed(2)})` 
+                            : `(${isProfit ? "+" : ""}₹${Math.round(Number(pnl) * 87.5)})`}
                         </span>
                       </div>
                     ) : (

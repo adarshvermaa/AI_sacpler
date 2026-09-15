@@ -44,7 +44,7 @@ interface CandleBar {
   volume: number;
 }
 
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export const DashboardChartView: React.FC<DashboardChartViewProps> = ({
   asset,

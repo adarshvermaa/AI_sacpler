@@ -251,7 +251,8 @@ export const CustomStudioPanel: React.FC<CustomStudioPanelProps> = ({
     setTestResults(null);
     try {
       const payload = buildPayload();
-      const res = await fetch("http://localhost:8000/api/v1/strategy/test", {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+      const res = await fetch(`${backendUrl}/api/v1/strategy/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)

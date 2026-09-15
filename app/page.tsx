@@ -16,7 +16,7 @@ import { DashboardChartView } from "../components/DashboardChartView";
 import { Top10OrdersPanel } from "../components/Top10OrdersPanel";
 import { LeverageStartModal } from "../components/LeverageStartModal";
 
-const BACKEND_URL = "http://localhost:8000";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export default function AlphaScalperDashboard() {
   const [socket, setSocket] = useState<any>(null);
@@ -27,6 +27,13 @@ export default function AlphaScalperDashboard() {
   const [latencyMs, setLatencyMs] = useState<number>(0.18);
   const [dailyPnl, setDailyPnl] = useState<number>(0.0);
   const [killSwitchActive, setKillSwitchActive] = useState<boolean>(false);
+  
+  // Dynamic Account Currency: Defaults to INR for CoinDCX accounts, toggleable to USDT
+  const [currency, setCurrency] = useState<"INR" | "USDT">("INR");
+
+  const handleToggleCurrency = () => {
+    setCurrency((prev) => (prev === "INR" ? "USDT" : "INR"));
+  };
   
   // CoinDCX API Diagnostics & Live Balance State
   const [coindcxStatus, setCoindcxStatus] = useState<CoinDCXVerificationData | null>(null);
@@ -61,7 +68,30 @@ export default function AlphaScalperDashboard() {
     avg_latency_ms: 0.18,
     current_capital: 7.52,
     current_capital_inr: 657.90,
-    inr_rate: 87.5
+    inr_rate: 87.5,
+    analytics_24h: {
+      status: "success",
+      database: "Neon Cloud PostgreSQL (Primary)",
+      neon_connected: true,
+      tp1_hits: 0,
+      tp2_hits: 0,
+      sl_hits: 0,
+      breakeven_exits: 0,
+      total_trades_24h: 0,
+      winning_trades_24h: 0,
+      losing_trades_24h: 0,
+      win_rate_24h_pct: 0.0,
+      profit_factor_24h: 0.0,
+      earned_24h_usdt: 0.0,
+      lost_24h_usdt: 0.0,
+      net_pnl_24h_usdt: 0.0,
+      earned_24h_inr: 0.0,
+      lost_24h_inr: 0.0,
+      net_pnl_24h_inr: 0.0,
+      total_fees_24h_usdt: 0.0,
+      total_fees_24h_inr: 0.0,
+      inr_rate: 87.5
+    }
   });
 
   const [candidates, setCandidates] = useState<any[]>([
@@ -124,6 +154,7 @@ export default function AlphaScalperDashboard() {
       if (data.is_running !== undefined) setIsRunning(data.is_running);
       if (data.mode) setMode(data.mode);
       if (data.config) setStrategyConfig(data.config);
+      if (data.account_currency === "INR" || data.account_currency === "USDT") setCurrency(data.account_currency);
       if (data.stats) setStats((prev: any) => ({ ...prev, ...data.stats }));
       if (data.top_10_filtered && data.top_10_filtered.length > 0) {
         setCandidates(data.top_10_filtered);
@@ -133,6 +164,7 @@ export default function AlphaScalperDashboard() {
     s.on("telemetry_update", (data: any) => {
       if (data.is_running !== undefined) setIsRunning(data.is_running);
       if (data.mode) setMode(data.mode);
+      if (data.account_currency === "INR" || data.account_currency === "USDT") setCurrency(data.account_currency);
       if (data.latency_ms !== undefined) setLatencyMs(data.latency_ms);
       if (data.daily_pnl !== undefined) setDailyPnl(data.daily_pnl);
       if (data.kill_switch_active !== undefined) setKillSwitchActive(data.kill_switch_active);
@@ -156,7 +188,8 @@ export default function AlphaScalperDashboard() {
         avg_latency_ms: data.avg_latency_ms ?? prev.avg_latency_ms,
         current_capital: data.current_capital ?? prev.current_capital,
         current_capital_inr: data.current_capital_inr ?? prev.current_capital_inr,
-        inr_rate: data.inr_rate ?? prev.inr_rate
+        inr_rate: data.inr_rate ?? prev.inr_rate,
+        analytics_24h: data.analytics_24h ?? prev.analytics_24h
       }));
     });
 
@@ -208,6 +241,9 @@ export default function AlphaScalperDashboard() {
       if (res.ok) {
         const data: CoinDCXVerificationData = await res.json();
         setCoindcxStatus(data);
+        if (data.account_currency === "INR" || data.account_currency === "USDT") {
+          setCurrency(data.account_currency);
+        }
         if (data.total_usdt_balance !== undefined) {
           const inrBal = data.futures_inr_balance ?? (data.total_usdt_balance * 87.5);
           setStats((prev: any) => ({
@@ -542,6 +578,9 @@ export default function AlphaScalperDashboard() {
         mode={mode}
         latencyMs={latencyMs}
         dailyPnl={dailyPnl}
+        dailyPnlInr={stats.daily_pnl_inr}
+        currency={currency}
+        onToggleCurrency={handleToggleCurrency}
         killSwitchActive={killSwitchActive}
         coindcxStatus={coindcxStatus}
         isVerifying={isVerifying}
@@ -567,12 +606,28 @@ export default function AlphaScalperDashboard() {
                   <span>CoinDCX API Verified: Authenticated</span>
                   <span className="text-emerald-400">✅</span>
                   <span className="text-slate-500 hidden xs:inline">|</span>
-                  <span>Usable: ${(coindcxStatus.total_usdt_balance ?? 0.049).toFixed(4)} USDT</span>
+                  <span>
+                    {currency === "INR" ? (
+                      <>Total Equity: ₹{(coindcxStatus.futures_inr_balance ?? 419.90).toFixed(2)} INR (~${(coindcxStatus.total_usdt_balance ?? 4.80).toFixed(2)} USDT) | Available Margin: ₹{(coindcxStatus.futures_inr_available ?? 237.36).toFixed(2)} INR</>
+                    ) : (
+                      <>Total Equity: ${(coindcxStatus.total_usdt_balance ?? 4.80).toFixed(2)} USDT (~₹{(coindcxStatus.futures_inr_balance ?? 419.90).toFixed(2)} INR) | Available: ${(coindcxStatus.available_usdt_balance ?? 2.71).toFixed(2)} USDT</>
+                    )}
+                  </span>
                 </div>
                 <div className="text-slate-400 text-[11px] sm:text-xs mt-1 leading-relaxed">
-                  CoinDCX Futures requires minimum <strong>$6.00 USDT</strong> margin per contract. 
-                  AlphaScalper is running live 500+ asset market analysis in <strong>Balance-Aware Protected Mode</strong>. 
-                  Live orders are held safely to protect your account from exchange errors until margin is added.
+                  {currency === "INR" ? (
+                    <>
+                      CoinDCX Futures requires minimum <strong>₹525.00 INR (~$6.00 USDT)</strong> free margin per contract. 
+                      Currently available free margin is <strong>₹{(coindcxStatus.futures_inr_available ?? 0).toFixed(2)} INR</strong> (with ₹{(coindcxStatus.futures_inr_locked ?? 0).toFixed(2)} INR locked in active positions). 
+                      AlphaScalper is running live in <strong>Balance-Aware Protected Mode</strong>. Orders are held safely until ₹525 INR free margin is reached.
+                    </>
+                  ) : (
+                    <>
+                      CoinDCX Futures requires minimum <strong>$6.00 USDT (~₹525 INR)</strong> margin per contract. 
+                      AlphaScalper is running live 500+ asset market analysis in <strong>Balance-Aware Protected Mode</strong>. 
+                      Live orders are held safely to protect your account from exchange errors until margin is added.
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -595,11 +650,19 @@ export default function AlphaScalperDashboard() {
               </div>
               <div>
                 <div className="text-emerald-300 font-bold tracking-wide flex flex-wrap items-center gap-1.5 sm:gap-2">
-                  <span>CoinDCX Futures INR Collateral Verified</span>
+                  <span>CoinDCX Futures {currency === "INR" ? "INR" : "USDT"} Collateral Verified</span>
                   <span className="text-slate-500 hidden xs:inline">|</span>
-                  <span className="text-white">Equity: ₹{coindcxStatus.futures_inr_balance?.toFixed(2) || "657.90"} INR (~${(coindcxStatus.total_usdt_balance ?? 7.52).toFixed(2)} USDT)</span>
+                  <span className="text-white">
+                    {currency === "INR"
+                      ? `Equity: ₹${coindcxStatus.futures_inr_balance?.toFixed(2) || "419.90"} INR (~$${(coindcxStatus.total_usdt_balance ?? 4.80).toFixed(2)} USDT)`
+                      : `Equity: $${(coindcxStatus.total_usdt_balance ?? 4.80).toFixed(2)} USDT (~₹${coindcxStatus.futures_inr_balance?.toFixed(2) || "419.90"} INR)`}
+                  </span>
                   <span className="text-slate-500 hidden sm:inline">|</span>
-                  <span className="text-emerald-400">Available Free: ₹{coindcxStatus.futures_inr_available?.toFixed(2) || "657.90"} INR</span>
+                  <span className="text-emerald-400">
+                    {currency === "INR"
+                      ? `Available Free: ₹${coindcxStatus.futures_inr_available?.toFixed(2) || "237.36"} INR`
+                      : `Available Free: $${((coindcxStatus.futures_inr_available ?? 237.36) / 87.5).toFixed(2)} USDT`}
+                  </span>
                 </div>
                 <div className="text-slate-400 text-[10px] sm:text-[11px] mt-0.5">
                   Dynamic Math Engine Active: <strong>Up to 10 Orders dynamically allocated</strong>, <strong>10x Leverage</strong>, <strong>15% Capital Protection Buffer</strong>, <strong>Hard Stop -0.45% & TP1 +0.85% (Risk-Free)</strong>.
@@ -617,7 +680,7 @@ export default function AlphaScalperDashboard() {
         )}
 
         {/* Performance Stats Cards */}
-        <PerformanceStats stats={stats} onResetStats={handleResetStats} />
+        <PerformanceStats stats={stats} currency={currency} onResetStats={handleResetStats} />
 
         {/* Mode Selector & Autopilot Execution Suite */}
         <ModeSelector
@@ -665,6 +728,7 @@ export default function AlphaScalperDashboard() {
               candidates={candidates}
               activeTrades={activeTrades}
               activeOrders={activeOrders}
+              currency={currency}
               selectedSymbol={selectedSymbol}
               onSelectSymbol={setSelectedSymbol}
               onExecuteTrade={handleExecuteSingleTrade}
@@ -681,6 +745,7 @@ export default function AlphaScalperDashboard() {
             <WinWinPositionManager
               activeTrades={activeTrades}
               activeOrders={activeOrders}
+              currency={currency}
               onExitTrade={handleExitSingleTrade}
               onExitAll={handleExitAllTrades}
               onCancelOrder={handleCancelSingleOrder}
@@ -701,10 +766,14 @@ export default function AlphaScalperDashboard() {
           <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isRunning ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
           <div className="truncate">
             <div className="text-[11px] font-bold text-white leading-tight truncate">
-              ₹{stats.current_capital_inr ? stats.current_capital_inr.toFixed(0) : "658"} INR
+              {currency === "INR" 
+                ? `₹${stats.current_capital_inr ? stats.current_capital_inr.toFixed(0) : "420"} INR` 
+                : `$${stats.current_capital ? stats.current_capital.toFixed(2) : "4.80"} USDT`}
             </div>
             <div className={`text-[10px] font-bold leading-tight ${stats.net_pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-              {stats.net_pnl >= 0 ? "+" : ""}${stats.net_pnl?.toFixed(2) || "0.00"} Net PnL
+              {currency === "INR" 
+                ? `${(stats.daily_pnl_inr ?? (stats.net_pnl * 87.5)) >= 0 ? "+" : ""}₹${(stats.daily_pnl_inr ?? (stats.net_pnl * 87.5)).toFixed(2)} Net PnL` 
+                : `${stats.net_pnl >= 0 ? "+" : ""}$${stats.net_pnl?.toFixed(2) || "0.00"} Net PnL`}
             </div>
           </div>
         </div>
@@ -769,6 +838,7 @@ export default function AlphaScalperDashboard() {
         currentLeverage={leverage}
         isRunning={isRunning}
         usableBalanceUsdt={coindcxStatus?.total_usdt_balance ?? 7.5}
+        currency={currency}
       />
     </div>
   );

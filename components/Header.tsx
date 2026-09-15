@@ -25,6 +25,9 @@ export interface CoinDCXVerificationData {
   public_api: string;
   auth_api: string;
   trading_mode: string;
+  account_currency?: string;
+  currency_symbol?: string;
+  min_required_inr?: number;
   balances: Record<string, number>;
   total_usdt_balance: number;
   available_usdt_balance?: number;
@@ -52,6 +55,9 @@ interface HeaderProps {
   mode: string;
   latencyMs: number;
   dailyPnl: number;
+  dailyPnlInr?: number;
+  currency?: "INR" | "USDT";
+  onToggleCurrency?: () => void;
   killSwitchActive: boolean;
   coindcxStatus?: CoinDCXVerificationData | null;
   isVerifying?: boolean;
@@ -68,6 +74,9 @@ export const Header: React.FC<HeaderProps> = ({
   mode,
   latencyMs,
   dailyPnl,
+  dailyPnlInr,
+  currency = "INR",
+  onToggleCurrency,
   killSwitchActive,
   coindcxStatus,
   isVerifying = false,
@@ -85,7 +94,9 @@ export const Header: React.FC<HeaderProps> = ({
   const isAuthValid = coindcxStatus?.auth_api === "AUTHENTICATED";
   const usableBal = coindcxStatus?.total_usdt_balance ?? 7.52;
   const inrBal = coindcxStatus?.futures_inr_balance ?? 657.90;
+  const inrAvailable = coindcxStatus?.futures_inr_available ?? inrBal;
   const isSufficient = coindcxStatus?.is_balance_sufficient ?? true;
+  const pnlInr = dailyPnlInr !== undefined ? dailyPnlInr : Math.round(dailyPnl * 87.5 * 100) / 100;
 
   return (
     <>
@@ -102,6 +113,19 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Mobile (< md) Quick Collateral & Leverage Pills */}
           <div className="md:hidden flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {/* Mobile Currency Switcher Toggle */}
+            {onToggleCurrency && (
+              <button
+                onClick={onToggleCurrency}
+                className="flex items-center gap-0.5 px-2 py-1 rounded-xl bg-slate-900/90 border border-slate-700 text-[10px] font-mono font-bold active:scale-95 transition-transform whitespace-nowrap cursor-pointer"
+                title={`Current Currency: ${currency}. Tap to switch between ₹ INR and $ USD.`}
+              >
+                <span className={currency === "INR" ? "text-cyan-300 font-black" : "text-slate-500"}>₹</span>
+                <span className="text-slate-600">/</span>
+                <span className={currency === "USDT" ? "text-cyan-300 font-black" : "text-slate-500"}>$</span>
+              </button>
+            )}
+
             {/* Mobile Margin Pill */}
             <button
               onClick={() => setShowModal(true)}
@@ -109,7 +133,7 @@ export const Header: React.FC<HeaderProps> = ({
               title="CoinDCX Futures Verified Margin"
             >
               <Wallet className="w-3 h-3 text-cyan-400 shrink-0" />
-              <span>₹{inrBal.toFixed(0)}</span>
+              <span>{currency === "INR" ? `₹${inrBal.toFixed(0)}` : `$${usableBal.toFixed(1)}`}</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             </button>
 
@@ -148,6 +172,38 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* 2. Center & Right: Desktop Telemetry & Status Bar (Uncluttered, Never Cuts Off) */}
           <div className="hidden md:flex items-center gap-1.5 lg:gap-2.5 text-xs font-mono shrink-0">
+            {/* Currency Switcher Toggle */}
+            {onToggleCurrency && (
+              <div className="flex items-center rounded-xl bg-slate-900/90 border border-slate-800 p-0.5 shadow-inner" title="Switch Display Currency">
+                <button
+                  type="button"
+                  onClick={() => currency !== "INR" && onToggleCurrency()}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    currency === "INR"
+                      ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-sm shadow-cyan-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                  title="Display in Indian Rupee (₹ INR)"
+                >
+                  <span>₹</span>
+                  <span>INR</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => currency !== "USDT" && onToggleCurrency()}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                    currency === "USDT"
+                      ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-sm shadow-cyan-500/30"
+                      : "text-slate-400 hover:text-white"
+                  }`}
+                  title="Display in US Dollar ($ USDT)"
+                >
+                  <span>$</span>
+                  <span>USD</span>
+                </button>
+              </div>
+            )}
+
             {/* Engine Status */}
             <div className="flex items-center gap-1.5 px-2.5 lg:px-3 py-1.5 rounded-xl bg-slate-900/90 border border-slate-800 shadow-inner whitespace-nowrap">
               <span className={`w-2 h-2 rounded-full shrink-0 ${isRunning ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
@@ -188,7 +244,11 @@ export const Header: React.FC<HeaderProps> = ({
               <Wallet className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform shrink-0" />
               <span className="text-slate-400 text-[11px] hidden lg:inline">MARGIN:</span>
               <span className="font-bold text-white font-mono text-[11px]">
-                ₹{inrBal.toFixed(0)} <span className="text-slate-400 font-normal">(${usableBal.toFixed(2)})</span>
+                {currency === "INR" ? (
+                  <>₹{inrBal.toFixed(0)} <span className="text-slate-400 font-normal">(${usableBal.toFixed(2)})</span></>
+                ) : (
+                  <>${usableBal.toFixed(2)} <span className="text-slate-400 font-normal">(₹{inrBal.toFixed(0)})</span></>
+                )}
               </span>
               <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-bold border border-emerald-500/30 hidden xl:inline-block">
                 LIVE
@@ -210,7 +270,11 @@ export const Header: React.FC<HeaderProps> = ({
             }`}>
               <span className="text-slate-400 text-[11px] hidden lg:inline">24H PNL:</span>
               <span className="font-bold text-xs">
-                {isProfit ? "+" : ""}${dailyPnl.toFixed(2)}
+                {currency === "INR" ? (
+                  <>{isProfit ? "+" : ""}₹{pnlInr.toFixed(2)} <span className="text-[10px] font-normal opacity-80">({isProfit ? "+" : ""}${dailyPnl.toFixed(2)})</span></>
+                ) : (
+                  <>{isProfit ? "+" : ""}${dailyPnl.toFixed(2)} <span className="text-[10px] font-normal opacity-80">({isProfit ? "+" : ""}₹{pnlInr.toFixed(2)})</span></>
+                )}
               </span>
             </div>
 
@@ -251,7 +315,11 @@ export const Header: React.FC<HeaderProps> = ({
                 isProfit ? "bg-emerald-950/20 border-emerald-500/30 text-emerald-400" : "bg-red-950/20 border-red-500/30 text-red-400"
               }`}>
                 <span className="text-slate-400 text-[11px]">24H PNL:</span>
-                <span className="font-bold text-[11px]">{isProfit ? "+" : ""}${dailyPnl.toFixed(2)}</span>
+                <span className="font-bold text-[11px]">
+                  {currency === "INR" 
+                    ? `${isProfit ? "+" : ""}₹${pnlInr.toFixed(2)} (${isProfit ? "+" : ""}$${dailyPnl.toFixed(2)})` 
+                    : `${isProfit ? "+" : ""}$${dailyPnl.toFixed(2)} (${isProfit ? "+" : ""}₹${pnlInr.toFixed(2)})`}
+                </span>
               </div>
             </div>
 
@@ -294,7 +362,9 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
                 <div>
                   <div className="text-xs font-bold text-white">
-                    ₹{inrBal.toFixed(0)} INR (~${usableBal.toFixed(2)} USDT)
+                    {currency === "INR" 
+                      ? `₹${inrBal.toFixed(0)} INR (~$${usableBal.toFixed(2)} USDT)` 
+                      : `$${usableBal.toFixed(2)} USDT (~₹${inrBal.toFixed(0)} INR)`}
                   </div>
                   <div className="text-[10px] text-slate-400">CoinDCX Futures Verified Collateral</div>
                 </div>
@@ -464,11 +534,19 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-slate-400 text-[11px]">Total Usable Margin Balance:</span>
-                  <span className="text-base sm:text-lg font-bold text-cyan-400">${usableBal.toFixed(4)} USDT</span>
+                  <span className="text-base sm:text-lg font-bold text-cyan-400">
+                    {currency === "INR" 
+                      ? `₹${inrBal.toFixed(2)} INR (~$${usableBal.toFixed(2)} USDT)` 
+                      : `$${usableBal.toFixed(4)} USDT (~₹${inrBal.toFixed(2)} INR)`}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-slate-400 mb-2.5">
                   <span>CoinDCX Min Contract Requirement:</span>
-                  <span className="font-semibold text-slate-300">$6.00 USDT</span>
+                  <span className="font-semibold text-slate-300">
+                    {currency === "INR" 
+                      ? `₹${coindcxStatus?.min_required_inr ?? 525}.00 INR (~$6.00 USDT)` 
+                      : "$6.00 USDT (~₹525.00 INR)"}
+                  </span>
                 </div>
 
                 <div className="p-3 rounded-lg border bg-emerald-950/20 border-emerald-500/30 text-emerald-300">
